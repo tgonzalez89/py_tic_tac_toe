@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=80"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "py_tic_tac_toe"
+version = "0.1.0"
+requires-python = ">=3.13"
+maintainers = [{ name = "Tomas Gonzalez Aragon" }]
+dependencies = ["pygame>=2.6"]
+
+[project.scripts]
+py_tic_tac_toe = "py_tic_tac_toe.__main__:main"
+
+[tool.mypy]
+strict = true
+
+[tool.ruff]
+line-length = 120
+select = ["ALL"]
+ignore = ["D100", "D101", "D107", "EM101", "TRY003"]
+fixable = ["ALL"]
