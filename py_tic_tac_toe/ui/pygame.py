@@ -1,8 +1,8 @@
-import os
+import sys
 
 import pygame
 
-from py_tic_tac_toe.game_engine.event import EnableInput, EventBus, InvalidMove, MoveRequested, StateUpdated
+from py_tic_tac_toe.event_bus.event_bus import EnableInput, EventBus, InvalidMove, MoveRequested, StateUpdated
 from py_tic_tac_toe.ui.ui import Ui
 
 
@@ -98,6 +98,9 @@ class PygameUi(Ui):
             )
 
     def _draw_marks(self) -> None:
+        if not hasattr(self, "board"):
+            return
+
         for row in range(3):
             for col in range(3):
                 value = self.board[row][col]
@@ -127,12 +130,12 @@ class PygameUi(Ui):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
-                os._exit(0)
+                sys.exit()
 
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if not self.game_running:
                     pygame.quit()
-                    os._exit(0)
+                    sys.exit()
                 self._on_click(event.pos)
 
     def _on_click(self, pos: tuple[int, int]) -> None:

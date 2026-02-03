@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from py_tic_tac_toe.game_engine.event import EventBus, StartTurn
+from py_tic_tac_toe.event_bus.event_bus import EventBus, StartTurn
 
 
 class Player(ABC):

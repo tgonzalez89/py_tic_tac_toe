@@ -1,12 +1,15 @@
+# ruff: noqa: ERA001
+
 import argparse
 import threading
 from typing import TYPE_CHECKING
 
-from py_tic_tac_toe.game_engine.event import EventBus
+from py_tic_tac_toe.event_bus.event_bus import EventBus
 from py_tic_tac_toe.game_engine.game_engine import GameEngine
+from py_tic_tac_toe.network.tcp_transport import create_client_transport, create_host_transport
 from py_tic_tac_toe.player.ai_player import RandomAIPlayer
 from py_tic_tac_toe.player.local_player import LocalPlayer
-from py_tic_tac_toe.player.player import Player
+from py_tic_tac_toe.player.network_players import LocalNetworkPlayer, RemoteNetworkPlayer
 from py_tic_tac_toe.ui.pygame import PygameUi
 from py_tic_tac_toe.ui.terminal import TerminalUi
 from py_tic_tac_toe.ui.tk import TkUi
@@ -15,46 +18,83 @@ if TYPE_CHECKING:
     from py_tic_tac_toe.ui.ui import Ui
 
 
-def _create_player(player_type: str, player_symbol: str, event_bus: EventBus) -> Player:
-    match player_type:
-        case "human":
-            return LocalPlayer(event_bus, player_symbol)
-        case "ai":
-            return RandomAIPlayer(event_bus, player_symbol)
-        case unknown:
-            msg = f"Invalid option for player {player_symbol}: {unknown}"
-            raise ValueError(msg)
-
-
-def main() -> None:  # noqa: D103
+def main() -> None:  # noqa: D103, PLR0912
     ui_choices: dict[str, type[Ui]] = {"terminal": TerminalUi, "pygame": PygameUi, "tk": TkUi}
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("player_x", choices=("human", "ai"))
-    parser.add_argument("player_o", choices=("human", "ai"))
-    parser.add_argument("ui", nargs="+", choices=ui_choices.keys())
+
+    parser.add_argument("--mode", choices=("local", "network"), required=True)
+
+    # local mode
+    parser.add_argument("--player-x", choices=("human", "ai"))
+    parser.add_argument("--player-o", choices=("human", "ai"))
+
+    # network mode
+    parser.add_argument("--role", choices=("host", "client"))
+    parser.add_argument("--symbol", choices=("X", "O"))
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=9000)
+
+    parser.add_argument("--ui", nargs="+", choices=ui_choices.keys(), required=True)
+
     args = parser.parse_args()
-    if not (1 <= len(args.ui) <= len(ui_choices)):
-        parser.error("Specify between 1 and 3 UI backends")
-    if len(args.ui) != len(set(args.ui)):
-        parser.error("UI arguments must be unique")
 
     event_bus = EventBus()
 
-    _player_x = _create_player(args.player_x, "X", event_bus)
-    _player_o = _create_player(args.player_o, "O", event_bus)
+    # -----------------------------
+    # UI
+    # -----------------------------
+    uis: list[Ui] = [ui_choices[ui](event_bus) for ui in args.ui]
+    ui_threads = [threading.Thread(target=ui.start, daemon=True) for ui in uis]
 
-    uis: dict[str, Ui] = {ui: ui_choices[ui](event_bus) for ui in args.ui}
-    ui_threads: dict[str, threading.Thread] = {ui: threading.Thread(target=uis[ui].start, daemon=True) for ui in uis}
-
-    for ui_thread in ui_threads.values():
+    for ui_thread in ui_threads:
         ui_thread.start()
 
-    while not all(ui.started for ui in uis.values()):
+    while not all(ui.started for ui in uis):
         pass
 
-    engine = GameEngine(event_bus)
-    engine.start()
+    # -----------------------------
+    # MODE: LOCAL
+    # -----------------------------
+    if args.mode == "local":
+        if not args.player_x or not args.player_o:
+            parser.error("local mode requires --player-x and --player-o")
 
-    for ui_thread in ui_threads.values():
+        if args.player_x == "human":
+            LocalPlayer(event_bus, "X")
+        else:
+            RandomAIPlayer(event_bus, "X")
+
+        if args.player_o == "human":
+            LocalPlayer(event_bus, "O")
+        else:
+            RandomAIPlayer(event_bus, "O")
+
+        engine = GameEngine(event_bus)
+        engine.start()
+
+    # -----------------------------
+    # MODE: NETWORK
+    # -----------------------------
+    else:
+        if not args.role or not args.symbol:
+            parser.error("network mode requires --role and --symbol")
+
+        if args.role == "host":
+            transport = create_host_transport(args.port)
+
+            host_symbol = args.symbol
+            remote_symbol = "O" if host_symbol == "X" else "X"
+
+            LocalPlayer(event_bus, host_symbol)
+            RemoteNetworkPlayer(event_bus, remote_symbol, transport)
+
+            engine = GameEngine(event_bus)
+            engine.start()
+
+        else:
+            transport = create_client_transport(args.host, args.port)
+            LocalNetworkPlayer(event_bus, args.symbol, transport)
+
+    for ui_thread in ui_threads:
         ui_thread.join()

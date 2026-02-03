@@ -1,5 +1,5 @@
+from py_tic_tac_toe.event_bus.event_bus import EventBus, MoveRequested, StartTurn, StateUpdated
 from py_tic_tac_toe.game.game import Move, TicTacToe
-from py_tic_tac_toe.game_engine.event import EventBus, MoveRequested, StartTurn, StateUpdated
 
 
 class GameEngine:

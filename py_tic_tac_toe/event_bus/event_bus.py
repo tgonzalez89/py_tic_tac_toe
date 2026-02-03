@@ -42,11 +42,11 @@ E = TypeVar("E", bound=Event)
 
 class EventBus:
     def __init__(self) -> None:
-        self._subscribers: dict[type[Event], list[Callable[[Event], None]]] = {}
+        self._handlers: dict[type[Event], list[Callable[[Event], None]]] = {}
 
     def subscribe(self, event_type: type[E], handler: Callable[[E], None]) -> None:  # noqa: D102
-        self._subscribers.setdefault(event_type, []).append(cast("Callable[[Event], None]", handler))
+        self._handlers.setdefault(event_type, []).append(cast("Callable[[Event], None]", handler))
 
     def publish(self, event: Event) -> None:  # noqa: D102
-        for handler in self._subscribers.get(type(event), []):
+        for handler in self._handlers.get(type(event), []):
             handler(event)

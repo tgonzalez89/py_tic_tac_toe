@@ -1,9 +1,9 @@
 # ruff: noqa: T201
 
-import os
+import sys
 import threading
 
-from py_tic_tac_toe.game_engine.event import EnableInput, EventBus, InvalidMove, MoveRequested, StateUpdated
+from py_tic_tac_toe.event_bus.event_bus import EnableInput, EventBus, InvalidMove, MoveRequested, StateUpdated
 from py_tic_tac_toe.ui.ui import Ui
 
 
@@ -34,13 +34,13 @@ class TerminalUi(Ui):
             try:
                 input_str = input()
             except BaseException:  # noqa: BLE001
-                os._exit(0)
+                sys.exit()
 
             if not self.game_running:
-                os._exit(0)
+                sys.exit()
 
             if input_str == "exit":
-                os._exit(0)
+                sys.exit()
 
             try:
                 digit = int(input_str)

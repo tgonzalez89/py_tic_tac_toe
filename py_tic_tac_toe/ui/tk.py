@@ -1,10 +1,10 @@
-import os
+import sys
 import threading
 import tkinter as tk
 from functools import partial
 from tkinter import messagebox
 
-from py_tic_tac_toe.game_engine.event import EnableInput, EventBus, InvalidMove, MoveRequested, StateUpdated
+from py_tic_tac_toe.event_bus.event_bus import EnableInput, EventBus, InvalidMove, MoveRequested, StateUpdated
 from py_tic_tac_toe.ui.ui import Ui
 
 
@@ -28,7 +28,7 @@ class TkUi(Ui):
         self.root.after(0, self.root.deiconify)
         self._started = True
         self.root.mainloop()
-        os._exit(0)
+        sys.exit()
 
     def _enable_input(self, event: EnableInput) -> None:
         self.current_player = event.player

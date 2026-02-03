@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from py_tic_tac_toe.game_engine.event import EnableInput, EventBus, InvalidMove, StateUpdated
+from py_tic_tac_toe.event_bus.event_bus import EnableInput, EventBus, InvalidMove, StateUpdated
 
 
 class Ui(ABC):

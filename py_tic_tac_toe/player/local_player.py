@@ -1,4 +1,4 @@
-from py_tic_tac_toe.game_engine.event import EnableInput, StartTurn
+from py_tic_tac_toe.event_bus.event_bus import EnableInput, StartTurn
 from py_tic_tac_toe.player.player import Player
 
 
