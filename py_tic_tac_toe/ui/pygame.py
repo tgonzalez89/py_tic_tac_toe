@@ -2,40 +2,57 @@ import os
 
 import pygame
 
-from py_tic_tac_toe.engine.game_engine import GameEngine, MoveRequested, StateUpdated
+from py_tic_tac_toe.game_engine.event import EnableInput, EventBus, InvalidMove, MoveRequested, StateUpdated
+from py_tic_tac_toe.ui.ui import Ui
 
 
-class PygameUI:
+class PygameUi(Ui):
+    TITLE = "Tic-Tac-Toe (Pygame)"
     WINDOW_SIZE = 480
     GRID_SIZE = 3
     CELL_SIZE = WINDOW_SIZE // GRID_SIZE
     LINE_WIDTH = 4
 
-    BG_COLOR = (30, 30, 30)
-    LINE_COLOR = (200, 200, 200)
-    X_COLOR = (200, 70, 70)
-    O_COLOR = (70, 70, 200)
-    TEXT_COLOR = (240, 240, 240)
+    BG_COLOR = (0, 0, 0)
+    LINE_COLOR = (127, 127, 127)
+    X_COLOR = (191, 63, 63)
+    O_COLOR = (63, 63, 191)
+    TEXT_COLOR = (255, 255, 255)
 
-    def __init__(self, game_engine: GameEngine) -> None:
-        self.game_engine = game_engine
-        self.current_player = "X"
-        self.game_over = False
-        self.board = game_engine.game.board
+    def __init__(self, event_bus: EventBus) -> None:
+        super().__init__(event_bus)
+
+        self.board: list[list[str | None]]
+        self.current_player: str
+        self.input_enabled = False
+        self.game_running = False
+        self.title = self.TITLE
+        self.title_changed = False
         self.end_message = ""
 
+    def start(self) -> None:  # noqa: D102
         pygame.init()
         self.screen = pygame.display.set_mode((self.WINDOW_SIZE, self.WINDOW_SIZE))
-        pygame.display.set_caption("Tic-Tac-Toe (Pygame)")
+        pygame.display.set_caption(self.TITLE)
 
         self.font = pygame.font.SysFont(None, 96)
         self.small_font = pygame.font.SysFont(None, 48)
         self.click_font = pygame.font.SysFont(None, 24)
 
-        self.game_engine.subscribe(StateUpdated, self._on_state_updated)
-
-    def start(self) -> None:  # noqa: D102
+        self.game_running = True
+        self._started = True
         self._main_loop()
+
+    def _enable_input(self, event: EnableInput) -> None:
+        self.current_player = event.player
+        self.input_enabled = True
+        self.title = f"{self.TITLE} - Player {self.current_player}"
+        self.title_changed = True
+
+    def _disable_input(self) -> None:
+        self.input_enabled = False
+        self.title = self.TITLE
+        self.title_changed = True
 
     # -----------------------------
     # Main loop
@@ -46,41 +63,11 @@ class PygameUI:
 
         while True:
             clock.tick(60)
+            if self.title_changed:
+                self.title_changed = False
+            pygame.display.set_caption(self.title)
             self._handle_events()
             self._render()
-
-    # -----------------------------
-    # Event handling
-    # -----------------------------
-
-    def _handle_events(self) -> None:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                os._exit(0)
-
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                if self.game_over:
-                    pygame.quit()
-                    os._exit(0)
-                elif self.current_player is not None:
-                    self._handle_click(event.pos)
-
-    def _handle_click(self, pos: tuple[int, int]) -> None:
-        x, y = pos
-        col = x // self.CELL_SIZE
-        row = y // self.CELL_SIZE
-
-        if row > 2 or col > 2:  # noqa: PLR2004
-            return
-
-        self.game_engine.on_move_requested(
-            MoveRequested(
-                player=self.current_player,
-                row=row,
-                col=col,
-            ),
-        )
 
     # -----------------------------
     # Rendering
@@ -115,51 +102,70 @@ class PygameUI:
             for col in range(3):
                 value = self.board[row][col]
 
-                text = self.font.render(
-                    value,
-                    True,  # noqa: FBT003
-                    self.X_COLOR if value == "X" else self.O_COLOR,
-                )
+                text = self.font.render(value, True, self.X_COLOR if value == "X" else self.O_COLOR)  # noqa: FBT003
                 rect = text.get_rect(
-                    center=(
-                        col * self.CELL_SIZE + self.CELL_SIZE // 2,
-                        row * self.CELL_SIZE + self.CELL_SIZE // 2,
-                    ),
+                    center=(col * self.CELL_SIZE + self.CELL_SIZE // 2, row * self.CELL_SIZE + self.CELL_SIZE // 2),
                 )
                 self.screen.blit(text, rect)
 
     def _draw_end_message(self) -> None:
-        if self.end_message:
-            main_text = self.small_font.render(
-                self.end_message,
-                True,  # noqa: FBT003
-                self.TEXT_COLOR,
-            )
-            click_text = self.click_font.render(
-                "Click anywhere to exit",
-                True,  # noqa: FBT003
-                self.TEXT_COLOR,
-            )
-            main_rect = main_text.get_rect(center=(self.WINDOW_SIZE // 2, self.WINDOW_SIZE // 2 - 20))
-            click_rect = click_text.get_rect(center=(self.WINDOW_SIZE // 2, self.WINDOW_SIZE // 2 + 20))
-            self.screen.blit(main_text, main_rect)
-            self.screen.blit(click_text, click_rect)
+        if not self.end_message:
+            return
+
+        main_text = self.small_font.render(self.end_message, True, self.TEXT_COLOR)  # noqa: FBT003
+        click_text = self.click_font.render("Click anywhere to exit", True, self.TEXT_COLOR)  # noqa: FBT003
+        main_rect = main_text.get_rect(center=(self.WINDOW_SIZE // 2, self.WINDOW_SIZE // 2 - 20))
+        click_rect = click_text.get_rect(center=(self.WINDOW_SIZE // 2, self.WINDOW_SIZE // 2 + 20))
+        self.screen.blit(main_text, main_rect)
+        self.screen.blit(click_text, click_rect)
 
     # -----------------------------
-    # State updates
+    # Event handling
     # -----------------------------
+
+    def _handle_events(self) -> None:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                os._exit(0)
+
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if not self.game_running:
+                    pygame.quit()
+                    os._exit(0)
+                self._on_click(event.pos)
+
+    def _on_click(self, pos: tuple[int, int]) -> None:
+        if not self.input_enabled:
+            return
+
+        x, y = pos
+        col = x // self.CELL_SIZE
+        row = y // self.CELL_SIZE
+
+        if row > 2 or col > 2:  # noqa: PLR2004
+            return
+
+        self._disable_input()
+
+        try:
+            self.event_bus.publish(MoveRequested(self.current_player, row, col))
+        except ValueError:
+            self._enable_input(EnableInput(self.current_player))
 
     def _on_state_updated(self, event: StateUpdated) -> None:
-        self.board = event.board
         self.current_player = event.current_player
+
+        self.board = event.board
 
         if event.winner:
             self._show_end_message(f"Winner: {event.winner}")
         elif all(all(cell is not None for cell in row) for row in event.board):
             self._show_end_message("It's a draw")
-        else:
-            pygame.display.set_caption(f"Tic-Tac-Toe (Tk) - Player {self.current_player}")
 
-    def _show_end_message(self, message: str) -> None:
-        self.game_over = True
-        self.end_message = message
+    def _show_end_message(self, msg: str) -> None:
+        self.game_running = False
+        self.end_message = msg
+
+    def _on_error(self, event: InvalidMove) -> None:
+        pass
