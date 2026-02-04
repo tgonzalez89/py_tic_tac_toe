@@ -11,11 +11,17 @@ class RemoteNetworkPlayer(Player):
     def __init__(self, event_bus: EventBus, symbol: str, transport: TcpTransport) -> None:
         super().__init__(event_bus, symbol)
         self.transport = transport
+        self.transport.send({"type": "AssignRole", "role": self.symbol})
+        msg = self.transport.recv()
+        if msg.get("type") != "AssignRoleAck":
+            err_msg = "Error assigning role."
+            raise RuntimeError(err_msg)
+
         self.start_turn_event_cache: StartTurn
 
         self.event_bus.subscribe(StateUpdated, self._on_state_updated)
 
-        self.transport.add_recv_handler(self._on_network_message)
+        self.transport.add_recv_handler("MoveRequested", self._on_network_message)
 
     def _on_start_turn(self, event: StartTurn) -> None:
         if event.current_player != self.symbol:
@@ -45,13 +51,20 @@ class RemoteNetworkPlayer(Player):
 class LocalNetworkPlayer(Player):
     """Client-side player: sends local moves to host, republishes state locally."""
 
-    def __init__(self, event_bus: EventBus, symbol: str, transport: TcpTransport) -> None:
-        super().__init__(event_bus, symbol)
+    def __init__(self, event_bus: EventBus, transport: TcpTransport) -> None:
         self.transport = transport
+        msg = self.transport.recv()
+        if msg.get("type") == "AssignRole" and isinstance(msg.get("role"), str):
+            super().__init__(event_bus, str(msg["role"]))
+        else:
+            err_msg = "Error assigning role."
+            raise RuntimeError(err_msg)
+        self.transport.send({"type": "AssignRoleAck"})
 
         self.event_bus.subscribe(MoveRequested, self._on_move_requested)
 
-        self.transport.add_recv_handler(self._on_network_message)
+        self.transport.add_recv_handler("StartTurn", self._on_network_message)
+        self.transport.add_recv_handler("StateUpdated", self._on_network_message)
 
     def _on_start_turn(self, event: StartTurn) -> None:
         if self.symbol != event.current_player:
@@ -71,3 +84,7 @@ class LocalNetworkPlayer(Player):
                 self.event_bus.publish(StartTurn(msg["board"], msg["current_player"]))
             case "StateUpdated":
                 self.event_bus.publish(StateUpdated(msg["board"], msg["current_player"], msg["winner"]))
+
+    def _on_assign_role(self, msg: dict[str, Any]) -> None:
+        if msg["type"] == "AssignRole":
+            self.symbol = msg["role"]

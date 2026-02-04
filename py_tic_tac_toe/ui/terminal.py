@@ -14,6 +14,7 @@ class TerminalUi(Ui):
         self.current_player: str
         self.game_running = False
         self.number_typed = threading.Event()
+        self.input_enabled = False
 
     def start(self) -> None:  # noqa: D102
         self.game_running = True
@@ -27,6 +28,11 @@ class TerminalUi(Ui):
 
     def _enable_input(self, event: EnableInput) -> None:
         self.current_player = event.player
+        self.input_enabled = True
+        self._ask_for_move()
+
+    def _disable_input(self) -> None:
+        self.input_enabled = False
 
     def _get_input(self) -> None:
         digit = None
@@ -42,26 +48,33 @@ class TerminalUi(Ui):
             if input_str == "exit":
                 sys.exit()
 
+            if not self.input_enabled:
+                break
+
             try:
                 digit = int(input_str)
             except ValueError:
                 print("Not an integer")
-                self._ask_for_move(self.current_player)
+                self._ask_for_move()
             else:
                 if digit < 1 or digit > 9:  # noqa: PLR2004
                     digit = None
                     print("Not between 1 and 9")
-                    self._ask_for_move(self.current_player)
+                    self._ask_for_move()
                     continue
+
                 digit -= 1
                 row, col = divmod(digit, 3)
                 self.number_typed.set()
+
+                self._disable_input()
+
                 try:
                     self.event_bus.publish(MoveRequested(self.current_player, row, col))
                     break
                 except ValueError as e:
                     print(e)
-                    self._ask_for_move(self.current_player)
+                    self._enable_input(EnableInput(self.current_player))
 
     # -----------------------------
     # Rendering
@@ -88,22 +101,22 @@ class TerminalUi(Ui):
             print()
         print(f"\n{output}\n", flush=True)
 
-    def _ask_for_move(self, current_player: str) -> None:
-        print(f"Player {current_player}'s move (1-9): ", end="", flush=True)
+    def _ask_for_move(self) -> None:
+        print(f"Player {self.current_player}'s move (1-9): ", end="", flush=True)
 
     # -----------------------------
     # Event handling
     # -----------------------------
 
     def _on_state_updated(self, event: StateUpdated) -> None:
+        self.current_player = event.current_player
+
         self._render_board(event.board)
 
         if event.winner:
             self._show_end_message(f"Winner: {event.winner}")
         elif all(all(cell is not None for cell in row) for row in event.board):
             self._show_end_message("It's a draw")
-        else:
-            self._ask_for_move(event.current_player)
 
     def _show_end_message(self, msg: str) -> None:
         self.game_running = False

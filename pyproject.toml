@@ -18,5 +18,5 @@ strict = true
 [tool.ruff]
 line-length = 120
 select = ["ALL"]
-ignore = ["D100", "D101", "D107", "D205", "D401", "EM101", "TRY003"]
+ignore = ["D100", "D101", "D107", "D205", "D401", "EM101", "TRY003", "S311"]
 fixable = ["ALL"]

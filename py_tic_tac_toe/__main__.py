@@ -1,6 +1,7 @@
 # ruff: noqa: ERA001
 
 import argparse
+import random
 import threading
 from typing import TYPE_CHECKING
 
@@ -18,7 +19,7 @@ if TYPE_CHECKING:
     from py_tic_tac_toe.ui.ui import Ui
 
 
-def main() -> None:  # noqa: D103, PLR0912
+def main() -> None:  # noqa: D103
     ui_choices: dict[str, type[Ui]] = {"terminal": TerminalUi, "pygame": PygameUi, "tk": TkUi}
 
     parser = argparse.ArgumentParser()
@@ -31,7 +32,6 @@ def main() -> None:  # noqa: D103, PLR0912
 
     # network mode
     parser.add_argument("--role", choices=("host", "client"))
-    parser.add_argument("--symbol", choices=("X", "O"))
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=9000)
 
@@ -76,25 +76,21 @@ def main() -> None:  # noqa: D103, PLR0912
     # -----------------------------
     # MODE: NETWORK
     # -----------------------------
+    elif args.role == "host":
+        transport = create_host_transport(args.port)
+
+        host_symbol = random.choice(("X", "O"))
+        remote_symbol = "O" if host_symbol == "X" else "X"
+
+        LocalPlayer(event_bus, host_symbol)
+        RemoteNetworkPlayer(event_bus, remote_symbol, transport)
+
+        engine = GameEngine(event_bus)
+        engine.start()
+
     else:
-        if not args.role or not args.symbol:
-            parser.error("network mode requires --role and --symbol")
-
-        if args.role == "host":
-            transport = create_host_transport(args.port)
-
-            host_symbol = args.symbol
-            remote_symbol = "O" if host_symbol == "X" else "X"
-
-            LocalPlayer(event_bus, host_symbol)
-            RemoteNetworkPlayer(event_bus, remote_symbol, transport)
-
-            engine = GameEngine(event_bus)
-            engine.start()
-
-        else:
-            transport = create_client_transport(args.host, args.port)
-            LocalNetworkPlayer(event_bus, args.symbol, transport)
+        transport = create_client_transport(args.host, args.port)
+        LocalNetworkPlayer(event_bus, transport)
 
     for ui_thread in ui_threads:
         ui_thread.join()

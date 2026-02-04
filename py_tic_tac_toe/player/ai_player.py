@@ -12,6 +12,6 @@ class RandomAIPlayer(Player):
         choices = [(r, c) for r in range(3) for c in range(3) if event.board[r][c] is None]
         if not choices:
             return
-        row, col = random.choice(choices)  # noqa: S311
+        row, col = random.choice(choices)
 
         self.event_bus.publish(MoveRequested(self.symbol, row, col))

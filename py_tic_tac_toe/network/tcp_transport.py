@@ -2,13 +2,15 @@ import json
 import socket
 import threading
 from collections.abc import Callable
+from queue import Empty, Queue
 
 
 class TcpTransport:
     def __init__(self, sock: socket.socket) -> None:
         self._sock = sock
-        self._handlers: list[Callable[[dict[str, object]], None]] = []
+        self._handlers: dict[str, list[Callable[[dict[str, object]], None]]] = {}
         self._running = False
+        self._inbox: Queue[dict[str, object]] = Queue()
         self._thread = threading.Thread(target=self._recv_loop, daemon=True)
         self._thread.start()
 
@@ -19,8 +21,20 @@ class TcpTransport:
         except ConnectionResetError:
             self._running = False
 
-    def add_recv_handler(self, handler: Callable[[dict[str, object]], None]) -> None:  # noqa: D102
-        self._handlers.append(handler)
+    def recv(self, timeout: float | None = None) -> dict[str, object]:
+        """Blocking receive of the next unhandled message.
+        Raises RuntimeError if the transport is closed.
+        """
+        while self._running:
+            try:
+                return self._inbox.get(timeout=timeout)
+            except Empty:
+                if not self._running:
+                    break
+        raise RuntimeError("Transport closed")
+
+    def add_recv_handler(self, msg_type: str, handler: Callable[[dict[str, object]], None]) -> None:  # noqa: D102
+        self._handlers.setdefault(msg_type, []).append(handler)
 
     def _recv_loop(self) -> None:
         buffer = b""
@@ -36,8 +50,16 @@ class TcpTransport:
             while b"\n" in buffer:
                 line, buffer = buffer.split(b"\n", 1)
                 msg = json.loads(line.decode("utf-8"))
-                for handler in self._handlers:
-                    handler(msg)
+                self._dispatch(msg)
+
+    def _dispatch(self, msg: dict[str, object]) -> None:
+        msg_type = msg.get("type")
+        handlers = self._handlers.get(msg_type) if isinstance(msg_type, str) else None
+        if handlers:
+            for handler in handlers:
+                handler(msg)
+        else:
+            self._inbox.put(msg)
 
 
 def create_host_transport(port: int) -> TcpTransport:  # noqa: D103
