@@ -5,10 +5,10 @@ from py_tic_tac_toe.event_bus.event_bus import EnableInput, EventBus, InvalidMov
 
 class Ui(ABC):
     def __init__(self, event_bus: EventBus) -> None:
-        self.event_bus = event_bus
-        self.event_bus.subscribe(StateUpdated, self._on_state_updated)
-        self.event_bus.subscribe(InvalidMove, self._on_error)
-        self.event_bus.subscribe(EnableInput, self._enable_input)
+        self._event_bus = event_bus
+        self._event_bus.subscribe(StateUpdated, self._on_state_updated)
+        self._event_bus.subscribe(InvalidMove, self._on_invalid_move)
+        self._event_bus.subscribe(EnableInput, self._enable_input)
         self._started = False
 
     @abstractmethod
@@ -28,5 +28,5 @@ class Ui(ABC):
         pass
 
     @abstractmethod
-    def _on_error(self, event: InvalidMove) -> None:
+    def _on_invalid_move(self, event: InvalidMove) -> None:
         pass

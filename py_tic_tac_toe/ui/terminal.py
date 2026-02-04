@@ -11,14 +11,14 @@ class TerminalUi(Ui):
     def __init__(self, event_bus: EventBus) -> None:
         super().__init__(event_bus)
 
-        self.current_player: str
-        self.game_running = False
-        self.number_typed = threading.Event()
-        self.input_enabled = False
+        self._current_player: str
+        self._game_running = False
+        self._number_typed = threading.Event()
+        self._input_enabled = False
 
     def start(self) -> None:  # noqa: D102
-        self.game_running = True
-        self.number_typed.set()
+        self._game_running = True
+        self._number_typed.set()
         self._started = True
         self._input_loop()
 
@@ -27,28 +27,28 @@ class TerminalUi(Ui):
             self._get_input()
 
     def _enable_input(self, event: EnableInput) -> None:
-        self.current_player = event.player
-        self.input_enabled = True
+        self._current_player = event.player
+        self._input_enabled = True
         self._ask_for_move()
 
     def _disable_input(self) -> None:
-        self.input_enabled = False
+        self._input_enabled = False
 
     def _get_input(self) -> None:
         digit = None
         while True:
             try:
                 input_str = input()
-            except BaseException:  # noqa: BLE001
+            except (KeyboardInterrupt, EOFError):
                 sys.exit()
 
-            if not self.game_running:
+            if not self._game_running:
                 sys.exit()
 
             if input_str == "exit":
                 sys.exit()
 
-            if not self.input_enabled:
+            if not self._input_enabled:
                 break
 
             try:
@@ -56,6 +56,7 @@ class TerminalUi(Ui):
             except ValueError:
                 print("Not an integer")
                 self._ask_for_move()
+                continue
             else:
                 if digit < 1 or digit > 9:  # noqa: PLR2004
                     digit = None
@@ -65,16 +66,11 @@ class TerminalUi(Ui):
 
                 digit -= 1
                 row, col = divmod(digit, 3)
-                self.number_typed.set()
+                self._number_typed.set()
 
                 self._disable_input()
-
-                try:
-                    self.event_bus.publish(MoveRequested(self.current_player, row, col))
-                    break
-                except ValueError as e:
-                    print(e)
-                    self._enable_input(EnableInput(self.current_player))
+                self._event_bus.publish(MoveRequested(self._current_player, row, col))
+                break
 
     # -----------------------------
     # Rendering
@@ -95,21 +91,21 @@ class TerminalUi(Ui):
         separator = "\n-----------\n"
         output = separator.join(rows)
 
-        if self.number_typed.is_set():
-            self.number_typed.clear()
+        if self._number_typed.is_set():
+            self._number_typed.clear()
         else:
             print()
         print(f"\n{output}\n", flush=True)
 
     def _ask_for_move(self) -> None:
-        print(f"Player {self.current_player}'s move (1-9): ", end="", flush=True)
+        print(f"Player {self._current_player}'s move (1-9): ", end="", flush=True)
 
     # -----------------------------
     # Event handling
     # -----------------------------
 
     def _on_state_updated(self, event: StateUpdated) -> None:
-        self.current_player = event.current_player
+        self._current_player = event.player
 
         self._render_board(event.board)
 
@@ -119,8 +115,9 @@ class TerminalUi(Ui):
             self._show_end_message("It's a draw")
 
     def _show_end_message(self, msg: str) -> None:
-        self.game_running = False
+        self._game_running = False
         print(f"{msg}\nPress Enter to exit", flush=True)
 
-    def _on_error(self, event: InvalidMove) -> None:
-        pass
+    def _on_invalid_move(self, event: InvalidMove) -> None:
+        print(event.error_msg)
+        self._enable_input(EnableInput(event.player))

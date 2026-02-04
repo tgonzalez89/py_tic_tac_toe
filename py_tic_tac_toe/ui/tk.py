@@ -12,32 +12,32 @@ class TkUi(Ui):
     def __init__(self, event_bus: EventBus) -> None:
         super().__init__(event_bus)
 
-        self.current_player: str
-        self.game_running = False
-        self.buttons: list[tk.Button] = []
-        self.input_enabled = False
+        self._current_player: str
+        self._game_running = False
+        self._buttons: list[tk.Button] = []
+        self._input_enabled = False
 
     def start(self) -> None:  # noqa: D102
-        self.root = tk.Tk()
-        self.root.title("Tic-Tac-Toe (Tk)")
+        self._root = tk.Tk()
+        self._root.title("Tic-Tac-Toe (Tk)")
 
         self._build_grid()
 
-        self.game_running = True
+        self._game_running = True
 
-        self.root.after(0, self.root.deiconify)
+        self._root.after(0, self._root.deiconify)
         self._started = True
-        self.root.mainloop()
+        self._root.mainloop()
         sys.exit()
 
     def _enable_input(self, event: EnableInput) -> None:
-        self.current_player = event.player
-        self.input_enabled = True
-        self.root.title(f"Tic-Tac-Toe (Tk) - Player {event.player}")
+        self._current_player = event.player
+        self._input_enabled = True
+        self._root.title(f"Tic-Tac-Toe (Tk) - Player {event.player}")
 
     def _disable_input(self) -> None:
-        self.input_enabled = False
-        self.root.title("Tic-Tac-Toe (Tk)")
+        self._input_enabled = False
+        self._root.title("Tic-Tac-Toe (Tk)")
 
     # -----------------------------
     # UI construction
@@ -46,7 +46,7 @@ class TkUi(Ui):
     def _build_grid(self) -> None:
         for i in range(9):
             btn = tk.Button(
-                self.root,
+                self._root,
                 text="",
                 width=7,
                 height=3,
@@ -54,29 +54,25 @@ class TkUi(Ui):
                 command=partial(self._on_click, i),
             )
             btn.grid(row=i // 3, column=i % 3, padx=2, pady=2)
-            self.buttons.append(btn)
+            self._buttons.append(btn)
 
     # -----------------------------
     # Event handling
     # -----------------------------
 
     def _on_click(self, index: int) -> None:
-        if not self.input_enabled or not self.game_running:
+        if not self._input_enabled or not self._game_running:
             return
 
         row, col = divmod(index, 3)
 
         self._disable_input()
-
-        try:
-            self.event_bus.publish(MoveRequested(self.current_player, row, col))
-        except ValueError:
-            self._enable_input(EnableInput(self.current_player))
+        self._event_bus.publish(MoveRequested(self._current_player, row, col))
 
     def _on_state_updated(self, event: StateUpdated) -> None:
-        self.current_player = event.current_player
+        self._current_player = event.player
 
-        for i, btn in enumerate(self.buttons):
+        for i, btn in enumerate(self._buttons):
             row, col = divmod(i, 3)
             value = event.board[row][col]
             btn.config(text=value if value is not None else "")
@@ -87,12 +83,12 @@ class TkUi(Ui):
             self._show_end_message("It's a draw")
 
     def _show_end_message(self, msg: str) -> None:
-        self.game_running = False
+        self._game_running = False
         threading.Thread(target=self._show_end_message_internal, daemon=True, args=(msg,)).start()
 
     def _show_end_message_internal(self, msg: str) -> None:
         messagebox.showinfo("Game Over", msg)
-        self.root.destroy()
+        self._root.destroy()
 
-    def _on_error(self, event: InvalidMove) -> None:
-        pass
+    def _on_invalid_move(self, event: InvalidMove) -> None:
+        self._enable_input(EnableInput(event.player))
