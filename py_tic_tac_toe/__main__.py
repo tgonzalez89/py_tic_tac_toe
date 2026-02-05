@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 from py_tic_tac_toe.event_bus.event_bus import EventBus
 from py_tic_tac_toe.game_engine.game_engine import GameEngine
 from py_tic_tac_toe.network.tcp_transport import create_client_transport, create_host_transport
-from py_tic_tac_toe.player.ai_player import RandomAIPlayer
+from py_tic_tac_toe.player.ai_player import HardAiPlayer, RandomAiPlayer
 from py_tic_tac_toe.player.local_player import LocalPlayer
 from py_tic_tac_toe.player.network_players import LocalNetworkPlayer, RemoteNetworkPlayer
 from py_tic_tac_toe.ui.pygame import PygameUi
@@ -18,10 +18,11 @@ from py_tic_tac_toe.ui.terminal import TerminalUi
 from py_tic_tac_toe.ui.tk import TkUi
 
 if TYPE_CHECKING:
+    from py_tic_tac_toe.game.board_utils import PlayerSymbol
     from py_tic_tac_toe.ui.ui import Ui
 
 
-def main() -> None:  # noqa: D103, PLR0912
+def main() -> None:  # noqa: C901, D103, PLR0912
     ui_choices: dict[str, type[Ui]] = {"terminal": TerminalUi, "pygame": PygameUi, "tk": TkUi}
 
     parser, args = _parse_args(ui_choices.keys())
@@ -50,13 +51,17 @@ def main() -> None:  # noqa: D103, PLR0912
 
         if args.player_x == "human":
             LocalPlayer(event_bus, "X")
+        elif args.player_x == "easy-ai":
+            RandomAiPlayer(event_bus, "X")
         else:
-            RandomAIPlayer(event_bus, "X")
+            HardAiPlayer(event_bus, "X")
 
         if args.player_o == "human":
             LocalPlayer(event_bus, "O")
+        elif args.player_o == "easy-ai":
+            RandomAiPlayer(event_bus, "O")
         else:
-            RandomAIPlayer(event_bus, "O")
+            HardAiPlayer(event_bus, "O")
 
         engine = GameEngine(event_bus)
         engine.start()
@@ -71,8 +76,8 @@ def main() -> None:  # noqa: D103, PLR0912
         if args.role == "host":
             transport = create_host_transport(args.port)
 
-            host_symbol = random.choice(("X", "O"))
-            remote_symbol = "O" if host_symbol == "X" else "X"
+            host_symbol: PlayerSymbol = random.choice(("X", "O"))
+            remote_symbol: PlayerSymbol = "O" if host_symbol == "X" else "X"
 
             LocalPlayer(event_bus, host_symbol)
             RemoteNetworkPlayer(event_bus, remote_symbol, transport)
@@ -94,8 +99,8 @@ def _parse_args(ui_choices: Iterable[str]) -> tuple[argparse.ArgumentParser, arg
     parser.add_argument("--mode", choices=("local", "network"), required=True)
 
     # local mode
-    parser.add_argument("--player-x", choices=("human", "ai"))
-    parser.add_argument("--player-o", choices=("human", "ai"))
+    parser.add_argument("--player-x", choices=("human", "easy-ai", "hard-ai"))
+    parser.add_argument("--player-o", choices=("human", "easy-ai", "hard-ai"))
 
     # network mode
     parser.add_argument("--role", choices=("host", "client"))

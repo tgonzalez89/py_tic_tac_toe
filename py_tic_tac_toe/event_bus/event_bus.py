@@ -3,6 +3,8 @@ from collections.abc import Callable
 from dataclasses import asdict, dataclass, fields, is_dataclass
 from typing import Self, TypeVar, cast
 
+from py_tic_tac_toe.game.board_utils import PlayerSymbol
+
 
 class Event:
     def to_dict(self) -> dict[str, object]:  # noqa: D102
@@ -35,45 +37,44 @@ class Event:
 
 @dataclass(frozen=True)
 class StateUpdated(Event):
-    board: list[list[str | None]]
-    player: str
-    winner: str | None
+    player: PlayerSymbol
+    board: list[list[PlayerSymbol | None]]
 
 
 @dataclass(frozen=True)
 class MoveRequested(Event):
-    player: str
+    player: PlayerSymbol
     row: int
     col: int
 
 
 @dataclass(frozen=True)
 class EnableInput(Event):
-    player: str
+    player: PlayerSymbol
 
 
 @dataclass(frozen=True)
 class InvalidMove(Event):
-    error_msg: str
-    player: str
+    player: PlayerSymbol
     row: int
     col: int
+    error_msg: str
 
 
 @dataclass(frozen=True)
 class StartTurn(Event):
-    player: str
+    player: PlayerSymbol
 
 
 @dataclass(frozen=True)
 class BoardRequested(Event):
-    player: str
+    player: PlayerSymbol
 
 
 @dataclass(frozen=True)
 class BoardProvided(Event):
-    player: str
-    board: list[list[str | None]]
+    player: PlayerSymbol
+    board: list[list[PlayerSymbol | None]]
 
 
 E = TypeVar("E", bound=Event)

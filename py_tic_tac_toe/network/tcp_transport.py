@@ -2,7 +2,9 @@ import atexit
 import contextlib
 import json
 import socket
+import sys
 import threading
+import traceback
 from collections.abc import Callable
 from queue import Queue, ShutDown
 
@@ -13,6 +15,7 @@ class TcpTransport:
         self._handlers: dict[str, list[Callable[[dict[str, object]], None]]] = {}
         self._running = False
         self._msg_queue: Queue[dict[str, object]] = Queue()
+        self._close_lock = threading.Lock()  # Prevent race conditions on close
         self._thread = threading.Thread(target=self._recv_loop, daemon=True)
         self._thread.start()
         atexit.register(self._close)  # Ensure cleanup on exit
@@ -39,6 +42,13 @@ class TcpTransport:
         self._handlers.setdefault(msg_type, []).append(handler)
 
     def _recv_loop(self) -> None:
+        try:
+            self._recv_loop_impl()
+        except Exception:
+            traceback.print_exc(file=sys.stderr)
+            raise
+
+    def _recv_loop_impl(self) -> None:
         buffer = b""
         self._running = True
         while self._running:
@@ -52,11 +62,14 @@ class TcpTransport:
                     msg = json.loads(line.decode("utf-8"))
                     if not isinstance(msg, dict):
                         raise TypeError("Unexpected msg type")  # noqa: TRY301
-                    if msg.get("type") == "close":
+                    if msg.get("__control__") == "close":
                         self._running = False
                         break
                     self._dispatch(msg)
-            except (OSError, json.JSONDecodeError, TypeError):
+            except (OSError, TypeError, ValueError):
+                # If we're already closing, don't re-raise - just exit cleanly
+                if not self._running:
+                    break
                 # Connection was closed abruptly or something went really bad.
                 self._close()
                 raise
@@ -77,17 +90,17 @@ class TcpTransport:
             self._msg_queue.put(msg)
 
     def _close(self) -> None:
-        already_closed = not self._running
-        self._running = False
-        self._msg_queue.shutdown(immediate=True)
-        if not already_closed:
-            try:
-                self._send_impl({"type": "close"})
-                self._sock.shutdown(socket.SHUT_WR)
-            except OSError:
-                pass
-        with contextlib.suppress(OSError):
-            self._sock.close()
+        with self._close_lock:
+            already_closed = not self._running
+            self._running = False
+            self._msg_queue.shutdown(immediate=True)
+            if not already_closed:
+                with contextlib.suppress(OSError, TypeError, ValueError):
+                    self._send_impl({"__control__": "close"})
+                with contextlib.suppress(OSError):
+                    self._sock.shutdown(socket.SHUT_WR)
+            with contextlib.suppress(OSError):
+                self._sock.close()
 
 
 def create_host_transport(port: int) -> TcpTransport:  # noqa: D103

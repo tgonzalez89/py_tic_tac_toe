@@ -8,13 +8,14 @@ from py_tic_tac_toe.event_bus.event_bus import (
     StartTurn,
     StateUpdated,
 )
+from py_tic_tac_toe.game.board_utils import PlayerSymbol
 from py_tic_tac_toe.network.tcp_transport import TcpTransport
 from py_tic_tac_toe.player.player import Player
 from py_tic_tac_toe.util.errors import LogicError
 
 
 class NetworkPlayer(Player):
-    def __init__(self, event_bus: EventBus, symbol: str, transport: TcpTransport) -> None:
+    def __init__(self, event_bus: EventBus, symbol: PlayerSymbol, transport: TcpTransport) -> None:
         super().__init__(event_bus, symbol)
         self._transport = transport
 
@@ -22,7 +23,7 @@ class NetworkPlayer(Player):
 class RemoteNetworkPlayer(NetworkPlayer):
     """Host-side player: receives moves from network, forwards engine state to client."""
 
-    def __init__(self, event_bus: EventBus, symbol: str, transport: TcpTransport) -> None:
+    def __init__(self, event_bus: EventBus, symbol: PlayerSymbol, transport: TcpTransport) -> None:
         super().__init__(event_bus, symbol, transport)
 
         self._transport.send({"type": "AssignRole", "role": self._symbol})
@@ -65,7 +66,7 @@ class LocalNetworkPlayer(NetworkPlayer):
         if msg is None or msg.get("type") != "AssignRole" or not isinstance(msg.get("role"), str):
             raise LogicError("Assign role msg not received")
 
-        super().__init__(event_bus, cast("str", msg["role"]), transport)
+        super().__init__(event_bus, cast("PlayerSymbol", msg["role"]), transport)
 
         self._transport.send({"type": "AssignRoleAck"})
 

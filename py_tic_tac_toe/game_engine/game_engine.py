@@ -7,6 +7,7 @@ from py_tic_tac_toe.event_bus.event_bus import (
     StartTurn,
     StateUpdated,
 )
+from py_tic_tac_toe.game.board_utils import get_winner, is_board_full
 from py_tic_tac_toe.game.game import Move, TicTacToe
 from py_tic_tac_toe.util.errors import InvalidMoveError, LogicError
 
@@ -26,20 +27,20 @@ class GameEngine:
         try:
             self._game.apply_move(Move(event.player, event.row, event.col))
         except InvalidMoveError as e:
-            self._event_bus.publish(InvalidMove(str(e), event.player, event.row, event.col))
+            self._event_bus.publish(InvalidMove(event.player, event.row, event.col, str(e)))
             return
         except IndexError as e:
             # Serious logic error, let it propagate.
             # TODO: think if this should be handled better (request move again, show something in the UI, etc.)
-            raise LogicError("Move out of bounds") from e
+            raise LogicError from e
 
         self._request_state_updated()
 
-        if not self._game.winner:
+        if not get_winner(self._game.board) and not is_board_full(self._game.board):
             self._request_start_turn()
 
     def _request_state_updated(self) -> None:
-        self._event_bus.publish(StateUpdated(self._game.board, self._game.current_player, self._game.winner))
+        self._event_bus.publish(StateUpdated(self._game.current_player, self._game.board))
 
     def _request_start_turn(self) -> None:
         self._event_bus.publish(StartTurn(self._game.current_player))

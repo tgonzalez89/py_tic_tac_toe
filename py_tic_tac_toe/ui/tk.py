@@ -5,6 +5,7 @@ from functools import partial
 from tkinter import messagebox
 
 from py_tic_tac_toe.event_bus.event_bus import EnableInput, EventBus, InvalidMove, MoveRequested, StateUpdated
+from py_tic_tac_toe.game.board_utils import BOARD_SIZE, PlayerSymbol, get_winner, is_board_full
 from py_tic_tac_toe.ui.ui import Ui
 
 
@@ -12,7 +13,7 @@ class TkUi(Ui):
     def __init__(self, event_bus: EventBus) -> None:
         super().__init__(event_bus)
 
-        self._current_player: str
+        self._current_player: PlayerSymbol
         self._game_running = False
         self._buttons: list[tk.Button] = []
         self._input_enabled = False
@@ -44,7 +45,8 @@ class TkUi(Ui):
     # -----------------------------
 
     def _build_grid(self) -> None:
-        for i in range(9):
+        total_buttons = BOARD_SIZE * BOARD_SIZE
+        for i in range(total_buttons):
             btn = tk.Button(
                 self._root,
                 text="",
@@ -53,7 +55,8 @@ class TkUi(Ui):
                 font=("Helvetica", 32),
                 command=partial(self._on_click, i),
             )
-            btn.grid(row=i // 3, column=i % 3, padx=2, pady=2)
+            row, col = divmod(i, BOARD_SIZE)
+            btn.grid(row=row, column=col, padx=2, pady=2)
             self._buttons.append(btn)
 
     # -----------------------------
@@ -64,7 +67,7 @@ class TkUi(Ui):
         if not self._input_enabled or not self._game_running:
             return
 
-        row, col = divmod(index, 3)
+        row, col = divmod(index, BOARD_SIZE)
 
         self._disable_input()
         self._event_bus.publish(MoveRequested(self._current_player, row, col))
@@ -73,13 +76,14 @@ class TkUi(Ui):
         self._current_player = event.player
 
         for i, btn in enumerate(self._buttons):
-            row, col = divmod(i, 3)
+            row, col = divmod(i, BOARD_SIZE)
             value = event.board[row][col]
             btn.config(text=value if value is not None else "")
 
-        if event.winner:
-            self._show_end_message(f"Winner: {event.winner}")
-        elif all(all(cell is not None for cell in row) for row in event.board):
+        winner = get_winner(event.board)
+        if winner:
+            self._show_end_message(f"Winner: {winner}")
+        elif is_board_full(event.board):
             self._show_end_message("It's a draw")
 
     def _show_end_message(self, msg: str) -> None:
@@ -88,7 +92,8 @@ class TkUi(Ui):
 
     def _show_end_message_internal(self, msg: str) -> None:
         messagebox.showinfo("Game Over", msg)
-        self._root.destroy()
+        # Schedule destroy on the main Tk thread to avoid thread conflicts
+        self._root.after(0, self._root.quit)
 
     def _on_invalid_move(self, event: InvalidMove) -> None:
         self._enable_input(EnableInput(event.player))

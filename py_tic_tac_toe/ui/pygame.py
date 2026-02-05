@@ -4,14 +4,14 @@ from typing import Final
 import pygame
 
 from py_tic_tac_toe.event_bus.event_bus import EnableInput, EventBus, InvalidMove, MoveRequested, StateUpdated
+from py_tic_tac_toe.game.board_utils import BOARD_SIZE, PlayerSymbol, get_winner, is_board_full
 from py_tic_tac_toe.ui.ui import Ui
 
 
 class PygameUi(Ui):
     TITLE: Final = "Tic-Tac-Toe (Pygame)"
     WINDOW_SIZE: Final = 480
-    GRID_SIZE: Final = 3
-    CELL_SIZE: Final = WINDOW_SIZE // GRID_SIZE
+    CELL_SIZE: Final = WINDOW_SIZE // BOARD_SIZE
     LINE_WIDTH: Final = 4
 
     BG_COLOR: Final = (0, 0, 0)
@@ -23,8 +23,8 @@ class PygameUi(Ui):
     def __init__(self, event_bus: EventBus) -> None:
         super().__init__(event_bus)
 
-        self._board: list[list[str | None]]
-        self._current_player: str
+        self._board: list[list[PlayerSymbol | None]]
+        self._current_player: PlayerSymbol
         self._input_enabled = False
         self._game_running = False
         self._title = self.TITLE
@@ -82,7 +82,7 @@ class PygameUi(Ui):
         pygame.display.flip()
 
     def _draw_grid(self) -> None:
-        for i in range(1, self.GRID_SIZE):
+        for i in range(1, BOARD_SIZE):
             pygame.draw.line(
                 self._screen,
                 self.LINE_COLOR,
@@ -102,8 +102,8 @@ class PygameUi(Ui):
         if not hasattr(self, "_board"):
             return
 
-        for row in range(3):
-            for col in range(3):
+        for row in range(len(self._board)):
+            for col in range(len(self._board[0])):
                 value = self._board[row][col]
 
                 text = self._font.render(value, True, self.X_COLOR if value == "X" else self.O_COLOR)  # noqa: FBT003
@@ -147,7 +147,7 @@ class PygameUi(Ui):
         col = x // self.CELL_SIZE
         row = y // self.CELL_SIZE
 
-        if row > 2 or col > 2:  # noqa: PLR2004
+        if row >= BOARD_SIZE or col >= BOARD_SIZE:
             return
 
         self._disable_input()
@@ -158,9 +158,10 @@ class PygameUi(Ui):
 
         self._board = event.board
 
-        if event.winner:
-            self._show_end_message(f"Winner: {event.winner}")
-        elif all(all(cell is not None for cell in row) for row in event.board):
+        winner = get_winner(event.board)
+        if winner:
+            self._show_end_message(f"Winner: {winner}")
+        elif is_board_full(event.board):
             self._show_end_message("It's a draw")
 
     def _show_end_message(self, msg: str) -> None:

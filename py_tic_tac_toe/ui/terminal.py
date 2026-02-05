@@ -4,6 +4,7 @@ import sys
 import threading
 
 from py_tic_tac_toe.event_bus.event_bus import EnableInput, EventBus, InvalidMove, MoveRequested, StateUpdated
+from py_tic_tac_toe.game.board_utils import BOARD_SIZE, PlayerSymbol, get_winner, is_board_full
 from py_tic_tac_toe.ui.ui import Ui
 
 
@@ -11,7 +12,7 @@ class TerminalUi(Ui):
     def __init__(self, event_bus: EventBus) -> None:
         super().__init__(event_bus)
 
-        self._current_player: str
+        self._current_player: PlayerSymbol
         self._game_running = False
         self._number_typed = threading.Event()
         self._input_enabled = False
@@ -35,7 +36,7 @@ class TerminalUi(Ui):
         self._input_enabled = False
 
     def _get_input(self) -> None:
-        digit = None
+        board_position = None
         while True:
             try:
                 input_str = input()
@@ -52,20 +53,21 @@ class TerminalUi(Ui):
                 break
 
             try:
-                digit = int(input_str)
+                board_position = int(input_str)
             except ValueError:
                 print("Not an integer")
                 self._ask_for_move()
                 continue
             else:
-                if digit < 1 or digit > 9:  # noqa: PLR2004
-                    digit = None
-                    print("Not between 1 and 9")
+                max_move = BOARD_SIZE * BOARD_SIZE
+                if board_position < 1 or board_position > max_move:
+                    board_position = None
+                    print(f"Not between 1 and {max_move}")
                     self._ask_for_move()
                     continue
 
-                digit -= 1
-                row, col = divmod(digit, 3)
+                index = board_position - 1
+                row, col = divmod(index, BOARD_SIZE)
                 self._number_typed.set()
 
                 self._disable_input()
@@ -76,16 +78,16 @@ class TerminalUi(Ui):
     # Rendering
     # -----------------------------
 
-    def _render_board(self, board: list[list[str | None]]) -> None:
+    def _render_board(self, board: list[list[PlayerSymbol | None]]) -> None:
         def _cell_value(index: int) -> str:
-            row, col = divmod(index, 3)
+            row, col = divmod(index, len(board[0]))
             value = board[row][col]
             return value if value is not None else str(index + 1)
 
         rows = []
-        for r in range(3):
-            start = r * 3
-            row = " | ".join(_cell_value(start + i) for i in range(3))
+        for r in range(len(board)):
+            start = r * len(board[0])
+            row = " | ".join(_cell_value(start + i) for i in range(len(board[0])))
             rows.append(f" {row} ")
 
         separator = "\n-----------\n"
@@ -98,7 +100,8 @@ class TerminalUi(Ui):
         print(f"\n{output}\n", flush=True)
 
     def _ask_for_move(self) -> None:
-        print(f"Player {self._current_player}'s move (1-9): ", end="", flush=True)
+        max_move = BOARD_SIZE * BOARD_SIZE
+        print(f"Player {self._current_player}'s move (1-{max_move}): ", end="", flush=True)
 
     # -----------------------------
     # Event handling
@@ -109,9 +112,10 @@ class TerminalUi(Ui):
 
         self._render_board(event.board)
 
-        if event.winner:
-            self._show_end_message(f"Winner: {event.winner}")
-        elif all(all(cell is not None for cell in row) for row in event.board):
+        winner = get_winner(event.board)
+        if winner:
+            self._show_end_message(f"Winner: {winner}")
+        elif is_board_full(event.board):
             self._show_end_message("It's a draw")
 
     def _show_end_message(self, msg: str) -> None:
