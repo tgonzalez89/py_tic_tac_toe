@@ -2,9 +2,7 @@ import atexit
 import contextlib
 import json
 import socket
-import sys
 import threading
-import traceback
 from collections.abc import Callable
 from queue import Queue, ShutDown
 
@@ -42,13 +40,6 @@ class TcpTransport:
         self._handlers.setdefault(msg_type, []).append(handler)
 
     def _recv_loop(self) -> None:
-        try:
-            self._recv_loop_impl()
-        except Exception:
-            traceback.print_exc(file=sys.stderr)
-            raise
-
-    def _recv_loop_impl(self) -> None:
         buffer = b""
         self._running = True
         while self._running:
