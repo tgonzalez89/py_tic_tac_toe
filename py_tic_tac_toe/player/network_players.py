@@ -2,10 +2,12 @@ from typing import Any, cast
 
 from py_tic_tac_toe.event_bus.event_bus import (
     EnableInput,
+    Event,
     EventBus,
     InputError,
     InvalidMove,
     MoveRequested,
+    NetworkMessageSent,
     StartTurn,
     StateUpdated,
 )
@@ -19,6 +21,20 @@ class NetworkPlayer(Player):
     def __init__(self, event_bus: EventBus, symbol: PlayerSymbol, transport: TcpTransport) -> None:
         super().__init__(event_bus, symbol)
         self._transport = transport
+        self._event_bus.subscribe(NetworkMessageSent, self._on_network_message_sent)
+
+    def _on_network_message_sent(self, event: NetworkMessageSent) -> None:
+        if event.player != self._symbol:
+            return
+
+        try:
+            self._transport.send(event.message)
+        except Exception:  # noqa: TRY203
+            # Network errors don't crash the game
+            raise
+
+    def _send_event(self, event: Event) -> None:
+        self._event_bus.publish_async(NetworkMessageSent(self._symbol, event.to_dict()))
 
 
 class RemoteNetworkPlayer(NetworkPlayer):
@@ -39,23 +55,17 @@ class RemoteNetworkPlayer(NetworkPlayer):
         self._transport.add_recv_handler("MoveRequested", self._on_network_message)
 
     def _on_start_turn(self, event: StartTurn) -> None:
-        if event.player != self._symbol:
-            return
-
-        self._transport.send(event.to_dict())
+        self._send_event(event)
 
     def _on_state_updated(self, event: StateUpdated) -> None:
-        self._transport.send(event.to_dict())
+        self._send_event(event)
 
     def _on_network_message(self, msg: dict[str, Any]) -> None:
         if msg.get("type") == "MoveRequested":
             self._event_bus.publish(MoveRequested.to_instance(msg))
 
     def _on_invalid_move(self, event: InvalidMove) -> None:
-        if event.player != self._symbol:
-            return
-
-        self._transport.send(event.to_dict())
+        self._send_event(event)
 
 
 class LocalNetworkPlayer(NetworkPlayer):
@@ -84,10 +94,7 @@ class LocalNetworkPlayer(NetworkPlayer):
         self._event_bus.publish(EnableInput(self._symbol))
 
     def _on_move_requested(self, event: MoveRequested) -> None:
-        if event.player != self._symbol:
-            return
-
-        self._transport.send(event.to_dict())
+        self._send_event(event)
 
     def _on_invalid_move(self, event: InvalidMove) -> None:
         if event.player != self._symbol:

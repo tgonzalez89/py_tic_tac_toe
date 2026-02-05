@@ -12,12 +12,16 @@ class TcpTransport:
     def __init__(self, sock: socket.socket) -> None:
         self._sock = sock
         self._handlers: dict[str, list[Callable[[dict[str, object]], None]]] = {}
+        self._handlers_lock = threading.Lock()
         self._running = False
         self._msg_queue: Queue[dict[str, object]] = Queue()
         self._close_lock = threading.Lock()  # Prevent race conditions on close
+        atexit.register(self._close)  # Ensure cleanup on exit
+        self._start()
+
+    def _start(self) -> None:
         self._thread = threading.Thread(target=self._recv_loop, daemon=True)
         self._thread.start()
-        atexit.register(self._close)  # Ensure cleanup on exit
 
     def send(self, msg: dict[str, object]) -> None:  # noqa: D102
         if not self._running:
@@ -40,7 +44,20 @@ class TcpTransport:
             return None
 
     def add_recv_handler(self, msg_type: str, handler: Callable[[dict[str, object]], None]) -> None:  # noqa: D102
-        self._handlers.setdefault(msg_type, []).append(handler)
+        with self._handlers_lock:
+            self._handlers.setdefault(msg_type, []).append(handler)
+
+    def remove_recv_handler(self, msg_type: str, handler: Callable[[dict[str, object]], None]) -> None:  # noqa: D102
+        with self._handlers_lock:
+            handlers = self._handlers.get(msg_type)
+            if not handlers:
+                return
+            try:
+                handlers.remove(handler)
+            except ValueError:
+                return
+            if not handlers:
+                self._handlers.pop(msg_type, None)
 
     def _recv_loop(self) -> None:
         buffer = b""
@@ -71,23 +88,26 @@ class TcpTransport:
 
     def _dispatch(self, msg: dict[str, object]) -> None:
         msg_type = msg.get("type")
-        handlers = self._handlers.get(msg_type) if isinstance(msg_type, str) else None
-        if handlers:
-            for handler in handlers:
-                try:
-                    handler(msg)
-                except Exception:
-                    # This shouldn't happen. This is either a logic error or something went really bad.
-                    self._close()
-                    raise
-        else:
-            self._msg_queue.put(msg)
+        if not isinstance(msg_type, str):
+            return
+        with self._handlers_lock:
+            handlers = self._handlers.get(msg_type, []).copy()
+        for handler in handlers:
+            try:
+                handler(msg)
+            except Exception:
+                # This shouldn't happen. This is either a logic error or something went really bad.
+                self._close()
+                raise
+        self._msg_queue.put(msg)
 
     def _close(self) -> None:
         with self._close_lock:
             already_closed = not self._running
             self._running = False
             self._msg_queue.shutdown(immediate=True)
+            with self._handlers_lock:
+                self._handlers.clear()
             if not already_closed:
                 with contextlib.suppress(OSError, TypeError, ValueError):
                     self._send_impl({"__control__": "close"})
@@ -95,6 +115,7 @@ class TcpTransport:
                     self._sock.shutdown(socket.SHUT_WR)
             with contextlib.suppress(OSError):
                 self._sock.close()
+            self._thread.join(timeout=1.0)
 
 
 def create_host_transport(port: int, timeout: float = 30.0) -> TcpTransport:  # noqa: D103

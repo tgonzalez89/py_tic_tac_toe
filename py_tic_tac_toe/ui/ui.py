@@ -1,4 +1,3 @@
-import sys
 from abc import ABC, abstractmethod
 
 from py_tic_tac_toe.event_bus.event_bus import EnableInput, EventBus, InputError, StateUpdated
@@ -19,9 +18,6 @@ class Ui(ABC):
     @abstractmethod
     def stop(self) -> None:  # noqa: D102
         pass
-
-    def force_stop(self) -> None:  # noqa: D102
-        sys.exit()
 
     @property
     def started(self) -> bool:  # noqa: D102

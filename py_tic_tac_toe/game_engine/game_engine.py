@@ -20,28 +20,28 @@ class GameEngine:
         self._event_bus.subscribe(BoardRequested, self._on_board_requested)
 
     def start(self) -> None:  # noqa: D102
-        self._request_state_updated()
-        self._request_start_turn()
+        self._publish_state_updated()
+        self._publish_start_turn()
 
     def _on_move_requested(self, event: MoveRequested) -> None:
         try:
             self._game.apply_move(Move(event.player, event.row, event.col))
         except InvalidMoveError as e:
             self._event_bus.publish(InvalidMove(event.player, event.row, event.col, str(e)))
-            self._request_start_turn()  # Invalid move: request move again without switching player
+            self._publish_start_turn()  # Invalid move: request move again without switching player
             return
         except IndexError as e:
             # Serious logic error, let it propagate.
             # TODO: think if this should be handled better (request move again, show something in the UI, etc.)
             raise LogicError from e
 
-        self._request_state_updated()  # State updated after successful move
-        self._request_start_turn()  # Start next turn: active player will do it's job
+        self._publish_state_updated()  # State updated after successful move
+        self._publish_start_turn()  # Start next turn: active player will do it's job
 
-    def _request_state_updated(self) -> None:
+    def _publish_state_updated(self) -> None:
         self._event_bus.publish(StateUpdated(self._game.current_player, self._game.board))
 
-    def _request_start_turn(self) -> None:
+    def _publish_start_turn(self) -> None:
         if not get_winner(self._game.board) and not is_board_full(self._game.board):
             self._event_bus.publish(StartTurn(self._game.current_player))
 

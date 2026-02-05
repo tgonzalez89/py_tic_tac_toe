@@ -2,7 +2,14 @@ import random
 from abc import ABC, abstractmethod
 from copy import deepcopy
 
-from py_tic_tac_toe.event_bus.event_bus import BoardProvided, BoardRequested, EventBus, MoveRequested, StartTurn
+from py_tic_tac_toe.event_bus.event_bus import (
+    AiThinkingComplete,
+    BoardProvided,
+    BoardRequested,
+    EventBus,
+    MoveRequested,
+    StartTurn,
+)
 from py_tic_tac_toe.game.board_utils import PlayerSymbol, get_available_moves, get_winner, is_draw
 from py_tic_tac_toe.player.player import Player
 from py_tic_tac_toe.util.errors import LogicError
@@ -12,6 +19,7 @@ class AiPlayer(Player, ABC):
     def __init__(self, event_bus: EventBus, symbol: PlayerSymbol) -> None:
         super().__init__(event_bus, symbol)
         self._event_bus.subscribe(BoardProvided, self._on_board_provided)
+        self._event_bus.subscribe(AiThinkingComplete, self._on_thinking_complete)
 
     def _on_start_turn(self, event: StartTurn) -> None:
         if self._symbol != event.player:
@@ -24,13 +32,20 @@ class AiPlayer(Player, ABC):
         if self._symbol != event.player:
             return
 
+        # Queue AI thinking asynchronously to avoid blocking on deep computation
         move = self._find_move(event.board)
         if move is None:
             msg = f"No moves available for player {self._symbol}, but game not over"
             raise LogicError(msg)
         row, col = move
 
-        self._event_bus.publish(MoveRequested(self._symbol, row, col))
+        self._event_bus.publish_async(AiThinkingComplete(self._symbol, row, col))
+
+    def _on_thinking_complete(self, event: AiThinkingComplete) -> None:
+        if self._symbol != event.player:
+            return
+
+        self._event_bus.publish(MoveRequested(self._symbol, event.row, event.col))
 
     @abstractmethod
     def _find_move(self, board: list[list[PlayerSymbol | None]]) -> tuple[int, int] | None:

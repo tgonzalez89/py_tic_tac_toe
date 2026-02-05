@@ -29,6 +29,7 @@ class TerminalUi(Ui):
     def _input_loop(self) -> None:
         while self._started:
             self._get_input()
+        print("Terminal UI stopped", flush=True)
 
     def _enable_input(self, event: EnableInput) -> None:
         self._current_player = event.player
