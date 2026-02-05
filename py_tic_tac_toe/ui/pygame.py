@@ -1,9 +1,8 @@
-import sys
 from typing import Final
 
 import pygame
 
-from py_tic_tac_toe.event_bus.event_bus import EnableInput, EventBus, InvalidMove, MoveRequested, StateUpdated
+from py_tic_tac_toe.event_bus.event_bus import EnableInput, EventBus, InputError, MoveRequested, StateUpdated
 from py_tic_tac_toe.game.board_utils import BOARD_SIZE, PlayerSymbol, get_winner, is_board_full
 from py_tic_tac_toe.ui.ui import Ui
 
@@ -40,9 +39,12 @@ class PygameUi(Ui):
         self._small_font = pygame.font.SysFont(None, 48)
         self._click_font = pygame.font.SysFont(None, 24)
 
-        self._game_running = True
         self._started = True
+        self._game_running = True
         self._main_loop()
+
+    def stop(self) -> None:  # noqa: D102
+        self._started = False
 
     def _enable_input(self, event: EnableInput) -> None:
         self._current_player = event.player
@@ -61,14 +63,14 @@ class PygameUi(Ui):
 
     def _main_loop(self) -> None:
         clock = pygame.time.Clock()
-
-        while True:
+        while self._started:
             clock.tick(60)
             if self._title_changed:
                 self._title_changed = False
             pygame.display.set_caption(self._title)
             self._handle_events()
             self._render()
+        pygame.quit()
 
     # -----------------------------
     # Rendering
@@ -130,13 +132,13 @@ class PygameUi(Ui):
     def _handle_events(self) -> None:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
+                self.stop()
+                return
 
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if not self._game_running:
-                    pygame.quit()
-                    sys.exit()
+                    self.stop()
+                    return
                 self._on_click(event.pos)
 
     def _on_click(self, pos: tuple[int, int]) -> None:
@@ -150,11 +152,12 @@ class PygameUi(Ui):
         if row >= BOARD_SIZE or col >= BOARD_SIZE:
             return
 
-        self._disable_input()
+        self._disable_input()  # Disable immediately to prevent multiple inputs before response
         self._event_bus.publish(MoveRequested(self._current_player, row, col))
 
     def _on_state_updated(self, event: StateUpdated) -> None:
         self._current_player = event.player
+        self._disable_input()  # Disable after each move; re-enabled by EnableInput
 
         self._board = event.board
 
@@ -168,5 +171,5 @@ class PygameUi(Ui):
         self._game_running = False
         self._end_message = msg
 
-    def _on_invalid_move(self, event: InvalidMove) -> None:
-        self._enable_input(EnableInput(event.player))
+    def _on_input_error(self, event: InputError) -> None:
+        pass

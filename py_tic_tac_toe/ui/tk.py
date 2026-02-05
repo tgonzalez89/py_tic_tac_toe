@@ -1,10 +1,9 @@
-import sys
 import threading
 import tkinter as tk
 from functools import partial
 from tkinter import messagebox
 
-from py_tic_tac_toe.event_bus.event_bus import EnableInput, EventBus, InvalidMove, MoveRequested, StateUpdated
+from py_tic_tac_toe.event_bus.event_bus import EnableInput, EventBus, InputError, MoveRequested, StateUpdated
 from py_tic_tac_toe.game.board_utils import BOARD_SIZE, PlayerSymbol, get_winner, is_board_full
 from py_tic_tac_toe.ui.ui import Ui
 
@@ -21,6 +20,7 @@ class TkUi(Ui):
     def start(self) -> None:  # noqa: D102
         self._root = tk.Tk()
         self._root.title("Tic-Tac-Toe (Tk)")
+        self._root.protocol("WM_DELETE_WINDOW", self._on_closing)
 
         self._build_grid()
 
@@ -29,7 +29,13 @@ class TkUi(Ui):
         self._root.after(0, self._root.deiconify)
         self._started = True
         self._root.mainloop()
-        sys.exit()
+
+    def stop(self) -> None:  # noqa: D102
+        self._root.after(0, self._root.quit)
+        self._started = False
+
+    def _on_closing(self) -> None:
+        self.stop()
 
     def _enable_input(self, event: EnableInput) -> None:
         self._current_player = event.player
@@ -69,11 +75,12 @@ class TkUi(Ui):
 
         row, col = divmod(index, BOARD_SIZE)
 
-        self._disable_input()
+        self._disable_input()  # Disable immediately to prevent multiple inputs before response
         self._event_bus.publish(MoveRequested(self._current_player, row, col))
 
     def _on_state_updated(self, event: StateUpdated) -> None:
         self._current_player = event.player
+        self._disable_input()  # Disable after each move; re-enabled by EnableInput
 
         for i, btn in enumerate(self._buttons):
             row, col = divmod(i, BOARD_SIZE)
@@ -92,8 +99,7 @@ class TkUi(Ui):
 
     def _show_end_message_internal(self, msg: str) -> None:
         messagebox.showinfo("Game Over", msg)
-        # Schedule destroy on the main Tk thread to avoid thread conflicts
-        self._root.after(0, self._root.quit)
+        self.stop()
 
-    def _on_invalid_move(self, event: InvalidMove) -> None:
-        self._enable_input(EnableInput(event.player))
+    def _on_input_error(self, event: InputError) -> None:
+        pass

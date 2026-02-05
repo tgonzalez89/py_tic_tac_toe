@@ -1,9 +1,8 @@
 # ruff: noqa: T201
 
-import sys
 import threading
 
-from py_tic_tac_toe.event_bus.event_bus import EnableInput, EventBus, InvalidMove, MoveRequested, StateUpdated
+from py_tic_tac_toe.event_bus.event_bus import EnableInput, EventBus, InputError, MoveRequested, StateUpdated
 from py_tic_tac_toe.game.board_utils import BOARD_SIZE, PlayerSymbol, get_winner, is_board_full
 from py_tic_tac_toe.ui.ui import Ui
 
@@ -23,8 +22,12 @@ class TerminalUi(Ui):
         self._started = True
         self._input_loop()
 
+    def stop(self) -> None:  # noqa: D102
+        print("Press Enter to exit", flush=True)
+        self._started = False
+
     def _input_loop(self) -> None:
-        while True:
+        while self._started:
             self._get_input()
 
     def _enable_input(self, event: EnableInput) -> None:
@@ -36,43 +39,42 @@ class TerminalUi(Ui):
         self._input_enabled = False
 
     def _get_input(self) -> None:
-        board_position = None
-        while True:
-            try:
-                input_str = input()
-            except (KeyboardInterrupt, EOFError):
-                sys.exit()
+        try:
+            input_str = input()
+        except (KeyboardInterrupt, EOFError):
+            self._started = False
+            return
 
-            if not self._game_running:
-                sys.exit()
+        if not self._game_running:
+            self._started = False
+            return
 
-            if input_str == "exit":
-                sys.exit()
+        if input_str == "exit":
+            self._started = False
+            return
 
-            if not self._input_enabled:
-                break
+        if not self._input_enabled:
+            return
 
-            try:
-                board_position = int(input_str)
-            except ValueError:
-                print("Not an integer")
+        try:
+            board_position = int(input_str)
+        except ValueError:
+            print("Not an integer")
+            self._ask_for_move()
+            return
+        else:
+            max_move = BOARD_SIZE * BOARD_SIZE
+            if board_position < 1 or board_position > max_move:
+                print(f"Not between 1 and {max_move}")
                 self._ask_for_move()
-                continue
-            else:
-                max_move = BOARD_SIZE * BOARD_SIZE
-                if board_position < 1 or board_position > max_move:
-                    board_position = None
-                    print(f"Not between 1 and {max_move}")
-                    self._ask_for_move()
-                    continue
+                return
 
-                index = board_position - 1
-                row, col = divmod(index, BOARD_SIZE)
-                self._number_typed.set()
+            index = board_position - 1
+            row, col = divmod(index, BOARD_SIZE)
+            self._number_typed.set()
 
-                self._disable_input()
-                self._event_bus.publish(MoveRequested(self._current_player, row, col))
-                break
+            self._disable_input()  # Disable immediately to prevent multiple inputs before response
+            self._event_bus.publish(MoveRequested(self._current_player, row, col))
 
     # -----------------------------
     # Rendering
@@ -109,6 +111,7 @@ class TerminalUi(Ui):
 
     def _on_state_updated(self, event: StateUpdated) -> None:
         self._current_player = event.player
+        self._disable_input()  # Disable after each move; re-enabled by EnableInput
 
         self._render_board(event.board)
 
@@ -120,8 +123,8 @@ class TerminalUi(Ui):
 
     def _show_end_message(self, msg: str) -> None:
         self._game_running = False
-        print(f"{msg}\nPress Enter to exit", flush=True)
+        print(f"{msg}", flush=True)
+        self.stop()
 
-    def _on_invalid_move(self, event: InvalidMove) -> None:
+    def _on_input_error(self, event: InputError) -> None:
         print(event.error_msg)
-        self._enable_input(EnableInput(event.player))

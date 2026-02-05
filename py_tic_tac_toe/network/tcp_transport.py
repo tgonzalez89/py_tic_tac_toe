@@ -3,6 +3,7 @@ import contextlib
 import json
 import socket
 import threading
+import time
 from collections.abc import Callable
 from queue import Queue, ShutDown
 
@@ -19,6 +20,8 @@ class TcpTransport:
         atexit.register(self._close)  # Ensure cleanup on exit
 
     def send(self, msg: dict[str, object]) -> None:  # noqa: D102
+        if not self._running:
+            return
         try:
             self._send_impl(msg)
         except (OSError, TypeError, ValueError):
@@ -94,12 +97,25 @@ class TcpTransport:
                 self._sock.close()
 
 
-def create_host_transport(port: int) -> TcpTransport:  # noqa: D103
+def create_host_transport(port: int, timeout: float = 30.0) -> TcpTransport:  # noqa: D103
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind(("", port))
     sock.listen(1)
-    conn, _ = sock.accept()
-    return TcpTransport(conn)
+    sock.settimeout(0.1)  # Short timeout per attempt for responsiveness
+
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        try:
+            conn, _ = sock.accept()
+            sock.close()
+            return TcpTransport(conn)
+        except TimeoutError:
+            continue
+
+    sock.close()
+    msg = f"No client connected within {timeout} seconds"
+    raise TimeoutError(msg)
 
 
 def create_client_transport(host: str, port: int) -> TcpTransport:  # noqa: D103

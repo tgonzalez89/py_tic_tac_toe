@@ -62,6 +62,12 @@ class InvalidMove(Event):
 
 
 @dataclass(frozen=True)
+class InputError(Event):
+    player: PlayerSymbol
+    error_msg: str
+
+
+@dataclass(frozen=True)
 class StartTurn(Event):
     player: PlayerSymbol
 

@@ -3,6 +3,7 @@ from typing import Any, cast
 from py_tic_tac_toe.event_bus.event_bus import (
     EnableInput,
     EventBus,
+    InputError,
     InvalidMove,
     MoveRequested,
     StartTurn,
@@ -54,8 +55,7 @@ class RemoteNetworkPlayer(NetworkPlayer):
         if event.player != self._symbol:
             return
 
-        # Re-trigger start turn to request move again from remote player
-        self._event_bus.publish(StartTurn(event.player))
+        self._transport.send(event.to_dict())
 
 
 class LocalNetworkPlayer(NetworkPlayer):
@@ -71,9 +71,11 @@ class LocalNetworkPlayer(NetworkPlayer):
         self._transport.send({"type": "AssignRoleAck"})
 
         self._event_bus.subscribe(MoveRequested, self._on_move_requested)
+        self._event_bus.subscribe(InvalidMove, self._on_invalid_move)
 
         self._transport.add_recv_handler("StartTurn", self._on_network_message)
         self._transport.add_recv_handler("StateUpdated", self._on_network_message)
+        self._transport.add_recv_handler("InvalidMove", self._on_network_message)
 
     def _on_start_turn(self, event: StartTurn) -> None:
         if self._symbol != event.player:
@@ -87,9 +89,17 @@ class LocalNetworkPlayer(NetworkPlayer):
 
         self._transport.send(event.to_dict())
 
+    def _on_invalid_move(self, event: InvalidMove) -> None:
+        if event.player != self._symbol:
+            return
+
+        self._event_bus.publish(InputError(event.player, event.error_msg))
+
     def _on_network_message(self, msg: dict[str, Any]) -> None:
         match msg.get("type"):
             case "StartTurn":
                 self._event_bus.publish(StartTurn.to_instance(msg))
             case "StateUpdated":
                 self._event_bus.publish(StateUpdated.to_instance(msg))
+            case "InvalidMove":
+                self._event_bus.publish(InvalidMove.to_instance(msg))

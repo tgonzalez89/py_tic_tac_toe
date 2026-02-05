@@ -21,7 +21,7 @@ class TicTacToe:
         return self._board
 
     @property
-    def current_player(self) -> str:  # noqa: D102
+    def current_player(self) -> PlayerSymbol:  # noqa: D102
         return self._current_player
 
     def apply_move(self, move: Move) -> None:  # noqa: D102

@@ -1,6 +1,7 @@
 # ruff: noqa: ERA001
 
 import argparse
+import os
 import random
 import threading
 import time
@@ -28,7 +29,6 @@ def main() -> None:  # noqa: C901, D103, PLR0912
     parser, args = _parse_args(ui_choices.keys())
 
     event_bus = EventBus()
-    transport = None  # Will be set in network mode
 
     # -----------------------------
     # UI
@@ -74,7 +74,12 @@ def main() -> None:  # noqa: C901, D103, PLR0912
             parser.error("network mode requires --role")
 
         if args.role == "host":
-            transport = create_host_transport(args.port)
+            try:
+                transport = create_host_transport(args.port, timeout=3.0)
+            except (TimeoutError, KeyboardInterrupt):
+                for ui in uis:
+                    ui.stop()
+                raise
 
             host_symbol: PlayerSymbol = random.choice(("X", "O"))
             remote_symbol: PlayerSymbol = "O" if host_symbol == "X" else "X"
@@ -89,8 +94,19 @@ def main() -> None:  # noqa: C901, D103, PLR0912
             transport = create_client_transport(args.host, args.port)
             LocalNetworkPlayer(event_bus, transport)
 
+    print("Game in progress. Waiting for UIs to exit...", flush=True)
+
     for ui_thread in ui_threads:
         ui_thread.join()
+
+    print("All UIs exited. Exiting game.", flush=True)
+
+    for ui in uis:
+        ui.force_stop()
+
+    print("Game exited.", flush=True)
+
+    os._exit(0)
 
 
 def _parse_args(ui_choices: Iterable[str]) -> tuple[argparse.ArgumentParser, argparse.Namespace]:
