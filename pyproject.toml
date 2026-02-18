@@ -8,6 +8,8 @@ version = "0.1.0"
 requires-python = ">=3.13"
 maintainers = [{ name = "Tomas Gonzalez Aragon" }]
 dependencies = ["pygame>=2.6"]
+[dependency-groups]
+dev = ["pytest", "ruff", "mypy"]
 
 [project.scripts]
 py_tic_tac_toe = "py_tic_tac_toe.__main__:main"
@@ -17,12 +19,19 @@ strict = true
 
 [tool.ruff]
 line-length = 120
+
+[tool.ruff.lint]
 select = ["ALL"]
 ignore = [
     "D100",
     "D101",
+    "D102",
+    "D103",
+    "D104",
     "D107",
+    "D203",
     "D205",
+    "D213",
     "D401",
     "EM101",
     "TRY003",
@@ -32,3 +41,14 @@ ignore = [
     "TD003",
 ]
 fixable = ["ALL"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests.py" = [
+    "ANN201",  # Missing return type annotation for test methods
+    "S101",    # Use of assert detected
+    "SLF001",  # Private member accessed
+    "SIM105",  # Use contextlib.suppress instead of try-except-pass
+    "PT018",   # Assertion should be broken down into multiple parts
+    "PLR2004", # Magic numbers are acceptable in tests
+    "INP001",  # Tests don't need to be part of a package
+]

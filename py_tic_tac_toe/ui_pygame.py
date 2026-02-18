@@ -2,9 +2,9 @@ from typing import Final
 
 import pygame
 
-from py_tic_tac_toe.event_bus.event_bus import EnableInput, EventBus, InputError, MoveRequested, StateUpdated
-from py_tic_tac_toe.game.board_utils import BOARD_SIZE, PlayerSymbol, get_winner, is_board_full
-from py_tic_tac_toe.ui.ui import Ui
+from py_tic_tac_toe.board import BOARD_SIZE
+from py_tic_tac_toe.game_engine import GameEngine
+from py_tic_tac_toe.ui import Ui
 
 
 class PygameUi(Ui):
@@ -19,18 +19,14 @@ class PygameUi(Ui):
     O_COLOR: Final = (63, 63, 191)
     TEXT_COLOR: Final = (255, 255, 255)
 
-    def __init__(self, event_bus: EventBus) -> None:
-        super().__init__(event_bus)
-
-        self._board: list[list[PlayerSymbol | None]]
-        self._current_player: PlayerSymbol
-        self._input_enabled = False
-        self._game_running = False
+    def __init__(self, game_engine: GameEngine) -> None:
+        super().__init__(game_engine)
+        self._board = self._game_engine.game.board.board.copy()
         self._title = self.TITLE
         self._title_changed = False
         self._end_message = ""
 
-    def start(self) -> None:  # noqa: D102
+    def run(self) -> None:
         pygame.init()
         self._screen = pygame.display.set_mode((self.WINDOW_SIZE, self.WINDOW_SIZE))
         pygame.display.set_caption(self.TITLE)
@@ -39,49 +35,66 @@ class PygameUi(Ui):
         self._small_font = pygame.font.SysFont(None, 48)
         self._click_font = pygame.font.SysFont(None, 24)
 
-        self._started = True
-        self._game_running = True
+        super().run()
         self._main_loop()
 
-    def stop(self) -> None:  # noqa: D102
-        self._started = False
-
-    def _enable_input(self, event: EnableInput) -> None:
-        self._current_player = event.player
-        self._input_enabled = True
-        self._title = f"{self.TITLE} - Player {self._current_player}"
+    def enable_input(self) -> None:
+        super().enable_input()
+        if not self._running:
+            return
+        self._title = f"{self.TITLE} - Player {self._game_engine.game.current_player}"
         self._title_changed = True
 
     def _disable_input(self) -> None:
-        self._input_enabled = False
+        super()._disable_input()
         self._title = self.TITLE
         self._title_changed = True
 
-    # -----------------------------
-    # Main loop
-    # -----------------------------
-
     def _main_loop(self) -> None:
         clock = pygame.time.Clock()
-        while self._started:
-            clock.tick(60)
-            if self._title_changed:
-                self._title_changed = False
-            pygame.display.set_caption(self._title)
+        while self._running:
+            clock.tick(30)
             self._handle_events()
             self._render()
         pygame.quit()
 
-    # -----------------------------
-    # Rendering
-    # -----------------------------
+    def _handle_events(self) -> None:
+        for event in pygame.event.get():
+            match event.type:
+                case pygame.QUIT:
+                    self._stop()
+                case pygame.MOUSEBUTTONDOWN:
+                    if self._end_message:
+                        pygame.event.post(pygame.event.Event(pygame.QUIT))
+                    elif self._input_enabled:
+                        self._on_click(event.pos)
 
     def _render(self) -> None:
+        if self._title_changed:
+            self._title_changed = False
+        pygame.display.set_caption(self._title)
         self._screen.fill(self.BG_COLOR)
         self._draw_grid()
         self._draw_marks()
         self._draw_end_message()
         pygame.display.flip()
+
+    def _on_click(self, pos: tuple[int, int]) -> None:
+        x, y = pos
+        col = x // self.CELL_SIZE
+        row = y // self.CELL_SIZE
+        if not (0 <= row < BOARD_SIZE) or not (0 <= col < BOARD_SIZE):
+            return
+        self._apply_move(row, col)
+
+    def _render_board(self) -> None:
+        self._board = self._game_engine.game.board.board.copy()
+
+    def _show_end_message(self, msg: str) -> None:
+        self._end_message = msg
+
+    def on_input_error(self, _exception: Exception) -> None:
+        pass
 
     def _draw_grid(self) -> None:
         for i in range(1, BOARD_SIZE):
@@ -101,13 +114,9 @@ class PygameUi(Ui):
             )
 
     def _draw_marks(self) -> None:
-        if not hasattr(self, "_board"):
-            return
-
         for row in range(len(self._board)):
             for col in range(len(self._board[0])):
                 value = self._board[row][col]
-
                 text = self._font.render(value, True, self.X_COLOR if value == "X" else self.O_COLOR)  # noqa: FBT003
                 rect = text.get_rect(
                     center=(col * self.CELL_SIZE + self.CELL_SIZE // 2, row * self.CELL_SIZE + self.CELL_SIZE // 2),
@@ -117,59 +126,9 @@ class PygameUi(Ui):
     def _draw_end_message(self) -> None:
         if not self._end_message:
             return
-
         main_text = self._small_font.render(self._end_message, True, self.TEXT_COLOR)  # noqa: FBT003
         click_text = self._click_font.render("Click anywhere to exit", True, self.TEXT_COLOR)  # noqa: FBT003
         main_rect = main_text.get_rect(center=(self.WINDOW_SIZE // 2, self.WINDOW_SIZE // 2 - 20))
         click_rect = click_text.get_rect(center=(self.WINDOW_SIZE // 2, self.WINDOW_SIZE // 2 + 20))
         self._screen.blit(main_text, main_rect)
         self._screen.blit(click_text, click_rect)
-
-    # -----------------------------
-    # Event handling
-    # -----------------------------
-
-    def _handle_events(self) -> None:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                self.stop()
-                return
-
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                if not self._game_running:
-                    self.stop()
-                    return
-                self._on_click(event.pos)
-
-    def _on_click(self, pos: tuple[int, int]) -> None:
-        if not self._input_enabled:
-            return
-
-        x, y = pos
-        col = x // self.CELL_SIZE
-        row = y // self.CELL_SIZE
-
-        if row >= BOARD_SIZE or col >= BOARD_SIZE:
-            return
-
-        self._disable_input()  # Disable immediately to prevent multiple inputs before response
-        self._event_bus.publish(MoveRequested(self._current_player, row, col))
-
-    def _on_state_updated(self, event: StateUpdated) -> None:
-        self._current_player = event.player
-        self._disable_input()  # Disable after each move; re-enabled by EnableInput
-
-        self._board = event.board
-
-        winner = get_winner(event.board)
-        if winner:
-            self._show_end_message(f"Winner: {winner}")
-        elif is_board_full(event.board):
-            self._show_end_message("It's a draw")
-
-    def _show_end_message(self, msg: str) -> None:
-        self._game_running = False
-        self._end_message = msg
-
-    def _on_input_error(self, event: InputError) -> None:
-        pass
