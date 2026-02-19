@@ -34,6 +34,7 @@ class TerminalUi(Ui):
             input_str = input()
         except (KeyboardInterrupt, EOFError):
             super()._stop()
+            return
 
         if input_str == "exit":
             super()._stop()
