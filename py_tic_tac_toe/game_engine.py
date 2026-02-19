@@ -7,7 +7,7 @@ from py_tic_tac_toe.player import Player
 class GameEngine:
     def __init__(self) -> None:
         self._game = Game()
-        self._board_updated_cbs: list[Callable[[], None]] = []
+        self._board_updated_cbs: list[Callable[[], None]]
 
     @property
     def game(self) -> Game:
@@ -15,13 +15,15 @@ class GameEngine:
 
     @property
     def current_player(self) -> Player:
-        return self._player1 if self._game.current_player == self._player1.symbol else self._player2
+        return self._player1 if self._game.current_player_symbol == self._player1.symbol else self._player2
 
     def set_players(self, player1: Player, player2: Player) -> None:
         self._player1 = player1
         self._player2 = player2
 
     def add_board_updated_cb(self, callback: Callable[[], None]) -> None:
+        if not hasattr(self, "_board_updated_cbs"):
+            self._board_updated_cbs = []
         self._board_updated_cbs.append(callback)
 
     def start(self) -> None:

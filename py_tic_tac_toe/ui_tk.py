@@ -10,7 +10,7 @@ from py_tic_tac_toe.ui import Ui
 
 
 class TkUi(Ui):
-    TITLE: Final = "Tic-Tac-Toe (Pygame)"
+    TITLE: Final = "Tic-Tac-Toe (Tk)"
 
     def __init__(self, game_engine: GameEngine) -> None:
         super().__init__(game_engine)
@@ -32,7 +32,7 @@ class TkUi(Ui):
         super().enable_input()
         if not self._running:
             return
-        self._root.title(f"{self.TITLE} - Player {self._game_engine.game.current_player}")
+        self._root.title(f"{self.TITLE} - Player {self._game_engine.game.current_player_symbol}")
 
     def _disable_input(self) -> None:
         super()._disable_input()

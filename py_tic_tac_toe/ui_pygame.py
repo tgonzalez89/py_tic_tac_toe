@@ -42,7 +42,7 @@ class PygameUi(Ui):
         super().enable_input()
         if not self._running:
             return
-        self._title = f"{self.TITLE} - Player {self._game_engine.game.current_player}"
+        self._title = f"{self.TITLE} - Player {self._game_engine.game.current_player_symbol}"
         self._title_changed = True
 
     def _disable_input(self) -> None:

@@ -9,13 +9,17 @@ from py_tic_tac_toe.player import Player
 class LocalPlayer(Player):
     def __init__(self, symbol: PlayerSymbol, game: Game) -> None:
         super().__init__(symbol, game)
-        self._enable_input_cbs: list[Callable[[], None]] = []
-        self._input_error_cbs: list[Callable[[Exception], None]] = []
+        self._enable_input_cbs: list[Callable[[], None]]
+        self._input_error_cbs: list[Callable[[Exception], None]]
 
     def add_enable_input_cb(self, callback: Callable[[], None]) -> None:
+        if not hasattr(self, "_enable_input_cbs"):
+            self._enable_input_cbs = []
         self._enable_input_cbs.append(callback)
 
     def add_input_error_cb(self, callback: Callable[[Exception], None]) -> None:
+        if not hasattr(self, "_input_error_cbs"):
+            self._input_error_cbs = []
         self._input_error_cbs.append(callback)
 
     def start_turn(self) -> None:

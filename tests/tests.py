@@ -6,10 +6,10 @@ import pytest
 
 from py_tic_tac_toe.board import Move, PlayerSymbol
 from py_tic_tac_toe.exception import InvalidMoveError
+from py_tic_tac_toe.factories import _create_network_player, config_game_engine, create_local_players
 from py_tic_tac_toe.game_engine import GameEngine
 from py_tic_tac_toe.player_ai import RandomAiPlayer
 from py_tic_tac_toe.player_local import LocalPlayer
-from py_tic_tac_toe.player_network import LocalNetworkPlayer, RemoteNetworkPlayer
 from py_tic_tac_toe.tcp_transport import TcpTransport, create_client_transport, create_host_transport
 from py_tic_tac_toe.ui import Ui
 
@@ -59,32 +59,17 @@ def get_free_port() -> int:
         return int(sock.getsockname()[1])
 
 
-def create_local_human_vs_human() -> tuple[GameEngine, FakeUI, LocalPlayer, LocalPlayer]:
+def create_local_human_vs_human() -> tuple[GameEngine, FakeUI]:
     game_engine = GameEngine()
     ui = FakeUI(game_engine)
 
-    player1 = LocalPlayer("X", game_engine.game)
-    player2 = LocalPlayer("O", game_engine.game)
+    player1, player2 = create_local_players("human", "human", game_engine, [ui])
+    config_game_engine(game_engine, (player1, player2), [ui])
 
-    player1.add_enable_input_cb(ui.enable_input)
-    player1.add_input_error_cb(ui.on_input_error)
-    player2.add_enable_input_cb(ui.enable_input)
-    player2.add_input_error_cb(ui.on_input_error)
-
-    game_engine.set_players(player1, player2)
-    game_engine.add_board_updated_cb(ui.on_board_updated)
-
-    return game_engine, ui, player1, player2
+    return game_engine, ui
 
 
-def create_network_human_vs_human() -> tuple[
-    GameEngine,
-    GameEngine,
-    FakeUI,
-    FakeUI,
-    TcpTransport,
-    TcpTransport,
-]:
+def create_network_human_vs_human() -> tuple[FakeUI, FakeUI, TcpTransport, TcpTransport]:
     game_engine_host = GameEngine()
     game_engine_client = GameEngine()
 
@@ -92,42 +77,27 @@ def create_network_human_vs_human() -> tuple[
     ui_client = FakeUI(game_engine_client)
 
     port = get_free_port()
+
+    # Create transports first (they block each other, so use ThreadPool)
     with ThreadPoolExecutor(max_workers=2) as executor:
         future_host = executor.submit(create_host_transport, port)
         future_client = executor.submit(create_client_transport, "127.0.0.1", port)
-        while not (future_host.done() and future_client.done()):
-            time.sleep(0.01)
         transport_host: TcpTransport = future_host.result()
         transport_client: TcpTransport = future_client.result()
 
-    player1_host = LocalNetworkPlayer(game_engine_host.game, transport_host, "X")
-    player2_host = RemoteNetworkPlayer(game_engine_host.game, transport_host, "O")
+    # Create host players first (non-blocking, just send symbol assignment messages)
+    player1_host = _create_network_player("local", game_engine_host, [ui_host], transport_host, "X")
+    player2_host = _create_network_player("remote", game_engine_host, [ui_host], transport_host, "O")
 
-    player1_client = RemoteNetworkPlayer(game_engine_client.game, transport_client)
-    player2_client = LocalNetworkPlayer(game_engine_client.game, transport_client)
+    # Create client players (may block briefly waiting for host symbols, but host is ready)
+    player1_client = _create_network_player("remote", game_engine_client, [ui_client], transport_client)
+    player2_client = _create_network_player("local", game_engine_client, [ui_client], transport_client)
 
-    player1_host.add_enable_input_cb(ui_host.enable_input)
-    player1_host.add_input_error_cb(ui_host.on_input_error)
-    player2_host.set_apply_move_cb(game_engine_host.apply_move)
+    # Configure game engines
+    config_game_engine(game_engine_host, (player1_host, player2_host), [ui_host])
+    config_game_engine(game_engine_client, (player1_client, player2_client), [ui_client])
 
-    player1_client.set_apply_move_cb(game_engine_client.apply_move)
-    player2_client.add_enable_input_cb(ui_client.enable_input)
-    player2_client.add_input_error_cb(ui_client.on_input_error)
-
-    game_engine_host.set_players(player1_host, player2_host)
-    game_engine_host.add_board_updated_cb(ui_host.on_board_updated)
-
-    game_engine_client.set_players(player1_client, player2_client)
-    game_engine_client.add_board_updated_cb(ui_client.on_board_updated)
-
-    return (
-        game_engine_host,
-        game_engine_client,
-        ui_host,
-        ui_client,
-        transport_host,
-        transport_client,
-    )
+    return ui_host, ui_client, transport_host, transport_client
 
 
 def close_transports(*transports: TcpTransport) -> None:
@@ -181,7 +151,7 @@ class TestLocalHumanVsHuman:
 
     def test_complete_game_human_vs_human(self) -> None:
         """Test a human player vs human player game with predefined moves."""
-        _game_engine, ui, _player1, _player2 = create_local_human_vs_human()
+        _game_engine, ui = create_local_human_vs_human()
 
         ui.run()
 
@@ -354,14 +324,7 @@ class TestNetworkHumanVsHuman:
 
     def test_network_human_vs_human_complete_game(self) -> None:
         """Test a complete network human vs human game."""
-        (
-            _game_engine_host,
-            _game_engine_client,
-            ui_host,
-            ui_client,
-            transport_host,
-            transport_client,
-        ) = create_network_human_vs_human()
+        ui_host, ui_client, transport_host, transport_client = create_network_human_vs_human()
 
         try:
             # Start games
@@ -418,7 +381,7 @@ class TestLocalHumanVsHumanErrorHandling:
 
     def test_illegal_move_occupied_cell(self) -> None:
         """Test that occupied cell move is rejected."""
-        _game_engine, ui, _player1, _player2 = create_local_human_vs_human()
+        _game_engine, ui = create_local_human_vs_human()
 
         ui.run()
 
@@ -440,7 +403,7 @@ class TestLocalHumanVsHumanErrorHandling:
 
     def test_illegal_move_out_of_bounds(self) -> None:
         """Test that out of bounds move is rejected."""
-        _game_engine, ui, _player1, _player2 = create_local_human_vs_human()
+        _game_engine, ui = create_local_human_vs_human()
 
         ui.run()
 
@@ -450,7 +413,7 @@ class TestLocalHumanVsHumanErrorHandling:
 
     def test_cannot_move_when_input_disabled(self) -> None:
         """Test that moves are rejected when input is disabled."""
-        _game_engine, ui, _player1, _player2 = create_local_human_vs_human()
+        _game_engine, ui = create_local_human_vs_human()
 
         ui.run()
 
@@ -466,7 +429,7 @@ class TestLocalHumanVsHumanErrorHandling:
 
     def test_cannot_move_when_not_current_player_turn(self) -> None:
         """Test that moves are rejected when it's not the current player's turn."""
-        game_engine, ui, _player1, _player2 = create_local_human_vs_human()
+        game_engine, ui = create_local_human_vs_human()
 
         ui.run()
 
@@ -487,7 +450,7 @@ class TestLocalHumanVsHumanErrorHandling:
 
     def test_cannot_move_after_game_ends(self) -> None:
         """Test that no moves are allowed after the game has ended."""
-        game_engine, ui, _player1, _player2 = create_local_human_vs_human()
+        game_engine, ui = create_local_human_vs_human()
 
         ui.run()
 
@@ -525,14 +488,7 @@ class TestNetworkHumanVsHumanErrorHandling:
     """Test error handling in network-based human vs human game."""
 
     def test_client_cannot_move_before_host_turn(self) -> None:
-        (
-            _game_engine_host,
-            _game_engine_client,
-            ui_host,
-            ui_client,
-            transport_host,
-            transport_client,
-        ) = create_network_human_vs_human()
+        ui_host, ui_client, transport_host, transport_client = create_network_human_vs_human()
 
         try:
             ui_host.run()
@@ -550,14 +506,7 @@ class TestNetworkHumanVsHumanErrorHandling:
             close_transports(transport_host, transport_client)
 
     def test_host_cannot_move_when_not_turn(self) -> None:
-        (
-            _game_engine_host,
-            _game_engine_client,
-            ui_host,
-            ui_client,
-            transport_host,
-            transport_client,
-        ) = create_network_human_vs_human()
+        ui_host, ui_client, transport_host, transport_client = create_network_human_vs_human()
 
         try:
             ui_host.run()
@@ -579,14 +528,7 @@ class TestNetworkHumanVsHumanErrorHandling:
             close_transports(transport_host, transport_client)
 
     def test_client_move_after_host_disconnect(self) -> None:
-        (
-            _game_engine_host,
-            _game_engine_client,
-            ui_host,
-            ui_client,
-            transport_host,
-            transport_client,
-        ) = create_network_human_vs_human()
+        ui_host, ui_client, transport_host, transport_client = create_network_human_vs_human()
 
         try:
             ui_host.run()
@@ -606,14 +548,7 @@ class TestNetworkHumanVsHumanErrorHandling:
             close_transports(transport_host, transport_client)
 
     def test_host_move_after_client_disconnect(self) -> None:
-        (
-            _game_engine_host,
-            _game_engine_client,
-            ui_host,
-            ui_client,
-            transport_host,
-            transport_client,
-        ) = create_network_human_vs_human()
+        ui_host, ui_client, transport_host, transport_client = create_network_human_vs_human()
 
         try:
             ui_host.run()

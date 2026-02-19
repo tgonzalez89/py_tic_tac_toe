@@ -1,6 +1,9 @@
-class LogicError(RuntimeError):
+class GameError(Exception):
+    pass
+
+class LogicError(GameError):
     pass
 
 
-class InvalidMoveError(RuntimeError):
+class InvalidMoveError(GameError):
     pass

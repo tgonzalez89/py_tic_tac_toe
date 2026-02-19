@@ -20,6 +20,10 @@ class Ui(ABC):
         self._running = False
 
     def _apply_move(self, row: int, col: int) -> bool:
+        # Disable own input immediately.
+        # Prevents sending multiple moves.
+        # This might not be strictly necessary because we're using a synchronous callback system,
+        # but if the architecture changes in the future, this will prevent a potential bug.
         self._disable_input()
         return self._game_engine.apply_move(row, col)
 
@@ -34,6 +38,15 @@ class Ui(ABC):
     def on_board_updated(self) -> None:
         if not self._running:
             return
+        # Disable input afterwards, when this function gets called by back by the game engine.
+        # This prevents a bug when multiple UIs are running in network mode.
+        # _apply_move only disables input for the UI that made the move, but on_board_updated
+        # is called for all UIs after a successful move.
+        # This also prevents a potential bug when an AI player is making a move and
+        # the human player's input is still enabled.
+        # This will not occur with a synchronous callback system, but if the architecture changes in the future,
+        # this will prevent a potential bug.
+        self._disable_input()
         self._render_board()
         winner = self._game_engine.game.board.get_winner()
         if winner:

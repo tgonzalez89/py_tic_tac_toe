@@ -24,13 +24,13 @@ class Board:
 
     def apply_move(self, move: Move) -> None:
         if not (0 <= move.row < len(self._board)) or not (0 <= move.col < len(self._board[0])):
-            raise IndexError("Move out of bounds")
+            raise IndexError("Move out of bounds.")
 
         if self._board[move.row][move.col] is not None:
-            raise InvalidMoveError("Cell occupied")
+            raise InvalidMoveError("Cell occupied.")
 
         if self.get_winner():
-            raise InvalidMoveError("Game over")
+            raise InvalidMoveError("Game over.")
 
         self._board[move.row][move.col] = move.player
 
