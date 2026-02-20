@@ -22,6 +22,11 @@ class Board:
     def board(self) -> list[list[PlayerSymbol | None]]:
         return self._board
 
+    def clone(self) -> "Board":
+        copied = Board()
+        copied._board = [row[:] for row in self._board]
+        return copied
+
     def apply_move(self, move: Move) -> None:
         if not (0 <= move.row < len(self._board)) or not (0 <= move.col < len(self._board[0])):
             raise IndexError("Move out of bounds.")

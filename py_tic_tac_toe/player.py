@@ -1,13 +1,11 @@
 from abc import ABC, abstractmethod
 
 from py_tic_tac_toe.board import PlayerSymbol
-from py_tic_tac_toe.game import Game
 
 
 class Player(ABC):
-    def __init__(self, symbol: PlayerSymbol, game: Game) -> None:
+    def __init__(self, symbol: PlayerSymbol) -> None:
         self._symbol = symbol
-        self._game = game
 
     @property
     def symbol(self) -> PlayerSymbol:

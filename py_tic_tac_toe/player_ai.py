@@ -1,17 +1,16 @@
 import random
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from copy import deepcopy
 
 from py_tic_tac_toe.board import Board, PlayerSymbol
 from py_tic_tac_toe.exception import LogicError
-from py_tic_tac_toe.game import Game
 from py_tic_tac_toe.player import Player
 
 
 class AiPlayer(Player, ABC):
-    def __init__(self, symbol: PlayerSymbol, game: Game) -> None:
-        super().__init__(symbol, game)
+    def __init__(self, symbol: PlayerSymbol, board: Board) -> None:
+        super().__init__(symbol)
+        self._board = board
         self._apply_move_cb: Callable[[int, int], None]
 
     def set_apply_move_cb(self, callback: Callable[[int, int], None]) -> None:
@@ -32,7 +31,7 @@ class AiPlayer(Player, ABC):
 
 class RandomAiPlayer(AiPlayer):
     def _find_move(self) -> tuple[int, int] | None:
-        available_positions = self._game.board.get_available_positions()
+        available_positions = self._board.get_available_positions()
         if not available_positions:
             return None
         return random.choice(available_positions)
@@ -42,8 +41,8 @@ class HardAiPlayer(AiPlayer):
     def _find_move(self) -> tuple[int, int] | None:
         best_score = -1000000
         best_move: tuple[int, int] | None = None
-        board: Board = deepcopy(self._game.board)
-        for row, col in self._game.board.get_available_positions():
+        board = self._board.clone()
+        for row, col in self._board.get_available_positions():
             board.board[row][col] = self._symbol
             score = self._minimax(board, self._opponent(self._symbol), 1)
             board.board[row][col] = None

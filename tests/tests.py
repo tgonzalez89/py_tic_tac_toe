@@ -196,8 +196,8 @@ class TestLocalHumanVsAI:
         game_engine = GameEngine()
         ui = FakeUI(game_engine)
 
-        player1 = LocalPlayer("X", game_engine.game)
-        player2 = RandomAiPlayer("O", game_engine.game)
+        player1 = LocalPlayer("X")
+        player2 = RandomAiPlayer("O", game_engine.game.board)
 
         player1.add_enable_input_cb(ui.enable_input)
         player2.set_apply_move_cb(game_engine.apply_move)
@@ -240,8 +240,8 @@ class TestLocalAIVsHuman:
         game_engine = GameEngine()
         ui = FakeUI(game_engine)
 
-        player1 = RandomAiPlayer("X", game_engine.game)
-        player2 = LocalPlayer("O", game_engine.game)
+        player1 = RandomAiPlayer("X", game_engine.game.board)
+        player2 = LocalPlayer("O")
 
         player1.set_apply_move_cb(game_engine.apply_move)
         player2.add_enable_input_cb(ui.enable_input)
@@ -289,8 +289,8 @@ class TestLocalAIVsAI:
         game_engine = GameEngine()
         ui = FakeUI(game_engine)
 
-        player1 = RandomAiPlayer("X", game_engine.game)
-        player2 = RandomAiPlayer("O", game_engine.game)
+        player1 = RandomAiPlayer("X", game_engine.game.board)
+        player2 = RandomAiPlayer("O", game_engine.game.board)
 
         player1.set_apply_move_cb(game_engine.apply_move)
         player2.set_apply_move_cb(game_engine.apply_move)

@@ -5,18 +5,17 @@ from typing import Any, cast
 
 from py_tic_tac_toe.board import PlayerSymbol
 from py_tic_tac_toe.exception import LogicError
-from py_tic_tac_toe.game import Game
 from py_tic_tac_toe.player import Player
 from py_tic_tac_toe.player_local import LocalPlayer
 from py_tic_tac_toe.tcp_transport import TcpTransport
 
 
 class NetworkPlayer(Player):
-    def __init__(self, game: Game, transport: TcpTransport, symbol: PlayerSymbol | None = None) -> None:
+    def __init__(self, transport: TcpTransport, symbol: PlayerSymbol | None = None) -> None:
         self._transport = transport
 
         if symbol is not None:
-            super().__init__(symbol, game)
+            super().__init__(symbol)
             self._transport.send({"type": f"assign_symbol:{self.__class__.__name__}", "symbol": symbol})
         else:
             # Receiving class is the opposite of the sending class.
@@ -27,7 +26,7 @@ class NetworkPlayer(Player):
             if not self._assign_symbol_event_var.wait(timeout=5.0):
                 raise TimeoutError("Symbol assignment timeout")
             self._transport.remove_recv_handler(f"assign_symbol:{opposite_class_name}", self._handle_assign_symbol)
-            super().__init__(self._symbol, game)
+            super().__init__(self._symbol)
 
     @abstractmethod
     def _get_opposite_class_name(self) -> str:
@@ -57,8 +56,8 @@ class RemoteNetworkPlayer(NetworkPlayer):
     def _get_opposite_class_name(self) -> str:
         return LocalNetworkPlayer.__name__
 
-    def __init__(self, game: Game, transport: TcpTransport, symbol: PlayerSymbol | None = None) -> None:
-        super().__init__(game, transport, symbol)
+    def __init__(self, transport: TcpTransport, symbol: PlayerSymbol | None = None) -> None:
+        super().__init__(transport, symbol)
         self._apply_move_cb: Callable[[int, int], None]
         self._transport.add_recv_handler("move", self._handle_move)
 

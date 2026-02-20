@@ -31,16 +31,16 @@ def _create_local_player(
 ) -> Player:
     match player_type:
         case "human":
-            human_player = LocalPlayer(symbol, game_engine.game)
+            human_player = LocalPlayer(symbol)
             for ui in uis:
                 human_player.add_enable_input_cb(ui.enable_input)
             return human_player
         case "easy-ai":
-            random_ai_player = RandomAiPlayer(symbol, game_engine.game)
+            random_ai_player = RandomAiPlayer(symbol, game_engine.game.board)
             random_ai_player.set_apply_move_cb(game_engine.apply_move)
             return random_ai_player
         case "hard-ai":
-            hard_ai_player = HardAiPlayer(symbol, game_engine.game)
+            hard_ai_player = HardAiPlayer(symbol, game_engine.game.board)
             hard_ai_player.set_apply_move_cb(game_engine.apply_move)
             return hard_ai_player
         case _:
@@ -73,12 +73,12 @@ def _create_network_player(
 ) -> Player:
     match player_type:
         case "local":
-            local_player = LocalNetworkPlayer(game_engine.game, transport, symbol)
+            local_player = LocalNetworkPlayer(transport, symbol)
             for ui in uis:
                 local_player.add_enable_input_cb(ui.enable_input)
             return local_player
         case "remote":
-            remote_player = RemoteNetworkPlayer(game_engine.game, transport, symbol)
+            remote_player = RemoteNetworkPlayer(transport, symbol)
             remote_player.set_apply_move_cb(game_engine.apply_move)
             return remote_player
         case _:

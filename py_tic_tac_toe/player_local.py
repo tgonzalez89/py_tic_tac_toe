@@ -1,13 +1,12 @@
 from collections.abc import Callable
 
 from py_tic_tac_toe.board import PlayerSymbol
-from py_tic_tac_toe.game import Game
 from py_tic_tac_toe.player import Player
 
 
 class LocalPlayer(Player):
-    def __init__(self, symbol: PlayerSymbol, game: Game) -> None:
-        super().__init__(symbol, game)
+    def __init__(self, symbol: PlayerSymbol) -> None:
+        super().__init__(symbol)
         self._enable_input_cbs: list[Callable[[], None]]
 
     def add_enable_input_cb(self, callback: Callable[[], None]) -> None:
