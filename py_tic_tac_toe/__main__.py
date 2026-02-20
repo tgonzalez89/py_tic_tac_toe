@@ -25,6 +25,10 @@ def main() -> None:
 
     parser, args = _parse_args(ui_choices.keys())
 
+    # Verify that only one instance of each UI type is specified.
+    if len(args.ui) != len(set(args.ui)):
+        parser.error("Each UI type can only be specified once.")
+
     # Create game engine and UIs.
     game_engine = GameEngine()
     uis: list[Ui] = [ui_choices[ui](game_engine) for ui in args.ui]
@@ -58,17 +62,19 @@ def main() -> None:
     # Set players and connect UI callbacks.
     config_game_engine(game_engine, (player1, player2), uis)
 
-    # Start UI threads and run game.
+    # Create and start UI threads.
     ui_threads = [threading.Thread(target=ui.run, daemon=True) for ui in uis]
-
     for ui_thread in ui_threads:
         ui_thread.start()
 
+    # Wait for all UIs to be running before starting the game loop.
     while not all(ui.running for ui in uis):
         time.sleep(0.1)
 
+    # Start the game loop.
     game_engine.start_game_loop()
 
+    # Wait for all UI threads to finish.
     for ui_thread in ui_threads:
         ui_thread.join()
 
