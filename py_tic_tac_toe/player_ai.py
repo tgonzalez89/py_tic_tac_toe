@@ -33,7 +33,7 @@ class RandomAiPlayer(AiPlayer):
 
 
 class HardAiPlayer(AiPlayer):
-    def _find_move(self) -> tuple[int, int] | None:
+    def _find_move(self) -> tuple[int, int] | None:  # noqa: PLR0911
         """Strategy-based AI using human-like optimal heuristics."""
         available = self._board.get_available_positions()
         if not available:
@@ -57,15 +57,43 @@ class HardAiPlayer(AiPlayer):
                 return (row, col)
             self._board.board[row][col] = None
 
-        # 3. Take center (strongest position)
+        # 3. Create a fork (two winning threats)
+        fork_move = self._find_fork_move(available, self._symbol)
+        if fork_move:
+            return fork_move
+
+        # 4. Block opponent's fork
+        fork_move = self._find_fork_move(available, opponent)
+        if fork_move:
+            return fork_move
+
+        # 5. Take center (strongest position)
         if (1, 1) in available:
             return (1, 1)
 
-        # 4. Take corner (next best positions)
+        # 6. Take corner (next best positions)
         corners = [(0, 0), (0, 2), (2, 0), (2, 2)]
         corner_moves = [c for c in corners if c in available]
         if corner_moves:
             return random.choice(corner_moves)
 
-        # 5. Take edge (remaining positions)
+        # 7. Take edge (remaining positions)
         return available[0]
+
+    def _find_fork_move(self, available: list[tuple[int, int]], symbol: PlayerSymbol) -> tuple[int, int] | None:
+        """Find a move that creates two winning threats (fork)."""
+        for row, col in available:
+            self._board.board[row][col] = symbol
+            # Count how many winning moves this creates
+            winning_threats = 0
+            for test_row, test_col in self._board.get_available_positions():
+                self._board.board[test_row][test_col] = symbol
+                if self._board.get_winner() == symbol:
+                    winning_threats += 1
+                self._board.board[test_row][test_col] = None
+            self._board.board[row][col] = None
+
+            if winning_threats >= 2:  # noqa: PLR2004
+                return (row, col)
+
+        return None
