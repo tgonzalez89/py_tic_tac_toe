@@ -57,7 +57,7 @@ class TkUi(Ui):
         if not self._input_enabled or not self._running:
             return
         row, col = divmod(index, BOARD_SIZE)
-        self._apply_move(row, col)
+        self._queue_move(row, col)
 
     def _render_board(self) -> None:
         for i, btn in enumerate(self._buttons):
@@ -73,4 +73,7 @@ class TkUi(Ui):
         self._stop()
 
     def _on_input_error(self, _exception: Exception) -> None:
+        pass
+
+    def _on_other_error(self, exception: Exception) -> None:
         pass

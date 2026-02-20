@@ -21,8 +21,6 @@ class TcpTransport:
         atexit.register(self._close)  # Ensure cleanup on exit.
 
     def send(self, msg: dict[str, object]) -> None:
-        if not self._running:
-            return
         try:
             self._send_impl(msg)
         except (OSError, TypeError, ValueError):

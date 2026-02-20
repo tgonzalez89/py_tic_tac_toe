@@ -27,16 +27,19 @@ class Board:
         copied._board = [row[:] for row in self._board]
         return copied
 
-    def apply_move(self, move: Move) -> None:
+    def validate_move(self, move: Move) -> None:
+        """Validate a move without applying it. Raises IndexError or InvalidMoveError if invalid."""
         if not (0 <= move.row < len(self._board)) or not (0 <= move.col < len(self._board[0])):
             raise IndexError("Move out of bounds.")
+
+        if self.is_game_over():
+            raise InvalidMoveError("Game over.")
 
         if self._board[move.row][move.col] is not None:
             raise InvalidMoveError("Cell occupied.")
 
-        if self.get_winner():
-            raise InvalidMoveError("Game over.")
-
+    def apply_move(self, move: Move) -> None:
+        self.validate_move(move)
         self._board[move.row][move.col] = move.player
 
     def get_available_positions(self) -> list[tuple[int, int]]:
@@ -62,3 +65,6 @@ class Board:
 
     def is_draw(self) -> bool:
         return self.is_full() and self.get_winner() is None
+
+    def is_game_over(self) -> bool:
+        return self.is_full() or self.get_winner() is not None

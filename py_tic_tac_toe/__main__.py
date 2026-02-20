@@ -34,7 +34,7 @@ def main() -> None:
         case "local":
             if not args.player_x or not args.player_o:
                 parser.error("Local mode requires both --player-x and --player-o to be specified.")
-            player1, player2 = create_local_players(args.player_x, args.player_o, game_engine, uis)
+            player1, player2 = create_local_players(args.player_x, args.player_o, game_engine.game.board, uis)
         case "network":
             match args.role:
                 case "host":
@@ -44,12 +44,12 @@ def main() -> None:
                     player1, player2 = create_network_host_players(
                         player_types[0],
                         player_types[1],
-                        game_engine,
+                        game_engine.game.board,
                         uis,
                         args.port,
                     )
                 case "client":
-                    player1, player2 = create_network_client_players(game_engine, uis, args.host, args.port)
+                    player1, player2 = create_network_client_players(game_engine.game.board, uis, args.host, args.port)
                 case _:
                     parser.error("Invalid role. Choose 'host' or 'client'.")
         case _:
@@ -67,7 +67,7 @@ def main() -> None:
     while not all(ui.running for ui in uis):
         time.sleep(0.1)
 
-    game_engine.start()
+    game_engine.start_game_loop()
 
     for ui_thread in ui_threads:
         ui_thread.join()

@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from py_tic_tac_toe.exception import InvalidMoveError
+from py_tic_tac_toe.exception import InvalidMoveError, NetworkError
 from py_tic_tac_toe.game_engine import GameEngine
 
 
@@ -20,17 +20,20 @@ class Ui(ABC):
     def _stop(self) -> None:
         self._running = False
 
-    def _apply_move(self, row: int, col: int) -> None:
+    def _queue_move(self, row: int, col: int) -> None:
         # Disable own input immediately.
         # Prevents sending multiple moves.
         # This might not be strictly necessary because we're using a synchronous callback system,
-        # but if the architecture changes in the future, this will prevent a potential bug.
+        # but for an asynchronous system, this will prevent a potential bug.
         self._disable_input()
         try:
-            self._game_engine.apply_move(row, col)
+            self._game_engine.queue_move(row, col)
         except InvalidMoveError as e:
             self.enable_input()
             self._on_input_error(e)
+        except NetworkError as e:
+            self.enable_input()
+            self._on_other_error(e)
 
     def enable_input(self) -> None:
         if not self._running:
@@ -49,7 +52,7 @@ class Ui(ABC):
         # is called for all UIs after a successful move.
         # This also prevents a potential bug when an AI player is making a move and
         # the human player's input is still enabled.
-        # This will not occur with a synchronous callback system, but if the architecture changes in the future,
+        # This will not occur with a synchronous callback system, but for an asynchronous system,
         # this will prevent a potential bug.
         self._disable_input()
         self._render_board()
@@ -69,4 +72,8 @@ class Ui(ABC):
 
     @abstractmethod
     def _on_input_error(self, exception: Exception) -> None:
+        pass
+
+    @abstractmethod
+    def _on_other_error(self, exception: Exception) -> None:
         pass

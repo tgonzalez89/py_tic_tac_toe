@@ -85,7 +85,7 @@ class PygameUi(Ui):
         row = y // self.CELL_SIZE
         if not (0 <= row < BOARD_SIZE) or not (0 <= col < BOARD_SIZE):
             return
-        self._apply_move(row, col)
+        self._queue_move(row, col)
 
     def _render_board(self) -> None:
         self._board = self._game_engine.game.board.board.copy()
@@ -94,6 +94,9 @@ class PygameUi(Ui):
         self._end_message = msg
 
     def _on_input_error(self, _exception: Exception) -> None:
+        pass
+
+    def _on_other_error(self, exception: Exception) -> None:
         pass
 
     def _draw_grid(self) -> None:

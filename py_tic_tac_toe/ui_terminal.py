@@ -58,7 +58,7 @@ class TerminalUi(Ui):
             index = board_position - 1
             row, col = divmod(index, BOARD_SIZE)
 
-            self._apply_move(row, col)
+            self._queue_move(row, col)
             if not self._running:
                 input()
 
@@ -85,6 +85,11 @@ class TerminalUi(Ui):
         self._stop()
 
     def _on_input_error(self, exception: Exception) -> None:
+        if not self._running:
+            return
+        print(str(exception), flush=True)
+
+    def _on_other_error(self, exception: Exception) -> None:
         if not self._running:
             return
         print(str(exception), flush=True)

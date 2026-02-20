@@ -8,3 +8,7 @@ class LogicError(GameError):
 
 class InvalidMoveError(GameError):
     pass
+
+
+class NetworkError(GameError):
+    pass

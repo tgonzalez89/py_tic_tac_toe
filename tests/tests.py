@@ -5,10 +5,10 @@ from concurrent.futures import ThreadPoolExecutor
 import pytest
 
 from py_tic_tac_toe.board import Move, PlayerSymbol
-from py_tic_tac_toe.exception import InvalidMoveError
+from py_tic_tac_toe.exception import InvalidMoveError, NetworkError
 from py_tic_tac_toe.factories import _create_network_player, config_game_engine, create_local_players
 from py_tic_tac_toe.game_engine import GameEngine
-from py_tic_tac_toe.player_ai import RandomAiPlayer
+from py_tic_tac_toe.player_ai import HardAiPlayer, RandomAiPlayer
 from py_tic_tac_toe.player_local import LocalPlayer
 from py_tic_tac_toe.tcp_transport import TcpTransport, create_client_transport, create_host_transport
 from py_tic_tac_toe.ui import Ui
@@ -42,6 +42,10 @@ class FakeUI(Ui):
         """Track input errors."""
         self.input_errors.append(exception)
 
+    def _on_other_error(self, exception: Exception) -> None:
+        """Track other errors (network, etc)."""
+        self.input_errors.append(exception)
+
     def get_board_state(self) -> list[list[PlayerSymbol | None]]:
         """Get current board state."""
         return self._game_engine.game.board.board
@@ -50,7 +54,8 @@ class FakeUI(Ui):
         """Simulate a user input move (for local players)."""
         if not self._input_enabled:
             raise RuntimeError("Input is not enabled - cannot move now")
-        self._apply_move(row, col)
+        self._queue_move(row, col)
+        self._game_engine.tick()
 
 
 def get_free_port() -> int:
@@ -63,7 +68,7 @@ def create_local_human_vs_human() -> tuple[GameEngine, FakeUI]:
     game_engine = GameEngine()
     ui = FakeUI(game_engine)
 
-    player1, player2 = create_local_players("human", "human", game_engine, [ui])
+    player1, player2 = create_local_players("human", "human", game_engine.game.board, [ui])
     config_game_engine(game_engine, (player1, player2), [ui])
 
     return game_engine, ui
@@ -86,12 +91,12 @@ def create_network_human_vs_human() -> tuple[FakeUI, FakeUI, TcpTransport, TcpTr
         transport_client: TcpTransport = future_client.result()
 
     # Create host players first (non-blocking, just send symbol assignment messages)
-    player1_host = _create_network_player("local", game_engine_host, [ui_host], transport_host, "X")
-    player2_host = _create_network_player("remote", game_engine_host, [ui_host], transport_host, "O")
+    player1_host = _create_network_player("local", [ui_host], transport_host, game_engine_host.game.board, "X")
+    player2_host = _create_network_player("remote", [ui_host], transport_host, game_engine_host.game.board, "O")
 
     # Create client players (may block briefly waiting for host symbols, but host is ready)
-    player1_client = _create_network_player("remote", game_engine_client, [ui_client], transport_client)
-    player2_client = _create_network_player("local", game_engine_client, [ui_client], transport_client)
+    player1_client = _create_network_player("remote", [ui_client], transport_client, game_engine_client.game.board)
+    player2_client = _create_network_player("local", [ui_client], transport_client, game_engine_client.game.board)
 
     # Configure game engines
     config_game_engine(game_engine_host, (player1_host, player2_host), [ui_host])
@@ -112,21 +117,10 @@ def wait_for_board_updates(
     expected_updates_client: int,
     timeout: float = 2.0,
 ) -> None:
-    """Wait until both UIs have received the expected number of board updates.
-
-    Args:
-        ui_host: Host UI instance
-        ui_client: Client UI instance
-        expected_updates_host: Expected board_updated_count on host
-        expected_updates_client: Expected board_updated_count on client
-        timeout: Maximum time to wait in seconds
-
-    Raises:
-        TimeoutError: If updates don't arrive within timeout
-
-    """
     start = time.time()
     while time.time() - start < timeout:
+        ui_host._game_engine.tick()
+        ui_client._game_engine.tick()
         if (
             ui_host.board_updated_count >= expected_updates_host
             and ui_client.board_updated_count >= expected_updates_client
@@ -200,7 +194,6 @@ class TestLocalHumanVsAI:
         player2 = RandomAiPlayer("O", game_engine.game.board)
 
         player1.add_enable_input_cb(ui.enable_input)
-        player2.set_apply_move_cb(game_engine.apply_move)
 
         game_engine.set_players(player1, player2)
         game_engine.add_board_updated_cb(ui.on_board_updated)
@@ -210,6 +203,7 @@ class TestLocalHumanVsAI:
         # Simulate game by manually playing moves
         # Human plays X
         ui.simulate_move(0, 0)
+        game_engine.tick()  # Advance game to let AI make its move
 
         # Check that both X and O have moved
         board = ui.get_board_state()
@@ -224,6 +218,7 @@ class TestLocalHumanVsAI:
             if available and ui._input_enabled:
                 row, col = available[0]
                 ui.simulate_move(row, col)
+                game_engine.tick()  # Advance game to let AI make its move
 
         # Game should finish
         assert ui.game_finished
@@ -243,13 +238,13 @@ class TestLocalAIVsHuman:
         player1 = RandomAiPlayer("X", game_engine.game.board)
         player2 = LocalPlayer("O")
 
-        player1.set_apply_move_cb(game_engine.apply_move)
         player2.add_enable_input_cb(ui.enable_input)
 
         game_engine.set_players(player1, player2)
         game_engine.add_board_updated_cb(ui.on_board_updated)
 
         ui.run()
+        game_engine.tick()  # Advance game to let AI make its move
 
         # AI starts first and makes a move automatically
         board = ui.get_board_state()
@@ -262,6 +257,7 @@ class TestLocalAIVsHuman:
         available = game_engine.game.board.get_available_positions()
         row, col = available[0]
         ui.simulate_move(row, col)
+        game_engine.tick()  # Advance game to let AI make its move
         board = ui.get_board_state()
         x_count = sum(1 for row in board for cell in row if cell == "X")
         o_count = sum(1 for row in board for cell in row if cell == "O")
@@ -274,6 +270,7 @@ class TestLocalAIVsHuman:
             if available and ui._input_enabled:
                 row, col = available[0]
                 ui.simulate_move(row, col)
+                game_engine.tick()  # Advance game to let AI make its move
 
         assert ui.game_finished
         assert ui.end_message is not None
@@ -292,23 +289,45 @@ class TestLocalAIVsAI:
         player1 = RandomAiPlayer("X", game_engine.game.board)
         player2 = RandomAiPlayer("O", game_engine.game.board)
 
-        player1.set_apply_move_cb(game_engine.apply_move)
-        player2.set_apply_move_cb(game_engine.apply_move)
+        game_engine.set_players(player1, player2)
+        game_engine.add_board_updated_cb(ui.on_board_updated)
+
+        ui.run()
+
+        # AI vs AI game completes automatically through game loop
+        # Just wait for it to finish or timeout
+        timeout = time.time() + 5
+        while not ui.game_finished and time.time() < timeout:
+            game_engine.tick()  # Advance game to let AI make its move
+
+        assert ui.game_finished
+        assert ui.end_message is not None
+        assert "Winner:" in ui.end_message or "draw" in ui.end_message
+        assert len(ui.input_errors) == 0
+
+    def test_hard_ai_vs_hard_ai(self) -> None:
+        """Test hard AI vs hard AI game - should always result in a draw."""
+        game_engine = GameEngine()
+        ui = FakeUI(game_engine)
+
+        player1 = HardAiPlayer("X", game_engine.game.board)
+        player2 = HardAiPlayer("O", game_engine.game.board)
 
         game_engine.set_players(player1, player2)
         game_engine.add_board_updated_cb(ui.on_board_updated)
 
         ui.run()
 
-        # AI vs AI game completes automatically through callback chain
+        # AI vs AI game completes automatically through game loop
         # Just wait for it to finish or timeout
         timeout = time.time() + 5
         while not ui.game_finished and time.time() < timeout:
-            time.sleep(0.01)
+            game_engine.tick()  # Advance game to let AI make its move
 
         assert ui.game_finished
         assert ui.end_message is not None
-        assert "Winner:" in ui.end_message or "draw" in ui.end_message
+        # Hard AI vs Hard AI should always end in a draw (both play optimally)
+        assert "draw" in ui.end_message
         assert len(ui.input_errors) == 0
 
 
@@ -491,6 +510,7 @@ class TestNetworkHumanVsHumanErrorHandling:
         try:
             ui_host.run()
             ui_client.run()
+            wait_for_board_updates(ui_host, ui_client, 1, 1)
 
             with pytest.raises(RuntimeError, match="Input is not enabled"):
                 ui_client.simulate_move(0, 0)
@@ -540,7 +560,12 @@ class TestNetworkHumanVsHumanErrorHandling:
 
             ui_client.simulate_move(1, 0)
 
-            assert ui_client.get_board_state()[1][0] == "O"
+            # Move should fail with network error
+            assert len(ui_client.input_errors) == 1
+
+            assert isinstance(ui_client.input_errors[0], NetworkError)
+            # Move should not be applied
+            assert ui_client.get_board_state()[1][0] is None
             assert ui_host.get_board_state()[1][0] is None
         finally:
             close_transports(transport_host, transport_client)
@@ -563,7 +588,12 @@ class TestNetworkHumanVsHumanErrorHandling:
 
             ui_host.simulate_move(1, 1)
 
-            assert ui_host.get_board_state()[1][1] == "X"
+            # Move should fail with network error
+            assert len(ui_host.input_errors) == 1
+
+            assert isinstance(ui_host.input_errors[0], NetworkError)
+            # Move should not be applied
+            assert ui_host.get_board_state()[1][1] is None
             assert ui_client.get_board_state()[1][1] is None
         finally:
             close_transports(transport_host, transport_client)

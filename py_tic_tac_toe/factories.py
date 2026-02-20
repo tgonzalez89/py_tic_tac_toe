@@ -9,7 +9,7 @@ Provides factories for creating:
 
 from typing import Literal
 
-from py_tic_tac_toe.board import PlayerSymbol
+from py_tic_tac_toe.board import Board, PlayerSymbol
 from py_tic_tac_toe.game_engine import GameEngine
 from py_tic_tac_toe.player import Player
 from py_tic_tac_toe.player_ai import HardAiPlayer, RandomAiPlayer
@@ -26,7 +26,7 @@ from py_tic_tac_toe.ui import Ui
 def _create_local_player(
     player_type: Literal["human", "easy-ai", "hard-ai"],
     symbol: PlayerSymbol,
-    game_engine: GameEngine,
+    board: Board,
     uis: list[Ui],
 ) -> Player:
     match player_type:
@@ -36,13 +36,9 @@ def _create_local_player(
                 human_player.add_enable_input_cb(ui.enable_input)
             return human_player
         case "easy-ai":
-            random_ai_player = RandomAiPlayer(symbol, game_engine.game.board)
-            random_ai_player.set_apply_move_cb(game_engine.apply_move)
-            return random_ai_player
+            return RandomAiPlayer(symbol, board)
         case "hard-ai":
-            hard_ai_player = HardAiPlayer(symbol, game_engine.game.board)
-            hard_ai_player.set_apply_move_cb(game_engine.apply_move)
-            return hard_ai_player
+            return HardAiPlayer(symbol, board)
         case _:
             msg = f"Unknown local player type: {player_type}. Choose from 'human', 'easy-ai', 'hard-ai'."
             raise ValueError(msg)
@@ -51,11 +47,11 @@ def _create_local_player(
 def create_local_players(
     player_x_type: Literal["human", "easy-ai", "hard-ai"],
     player_o_type: Literal["human", "easy-ai", "hard-ai"],
-    game_engine: GameEngine,
+    board: Board,
     uis: list[Ui],
 ) -> tuple[Player, Player]:
-    player1 = _create_local_player(player_x_type, "X", game_engine, uis)
-    player2 = _create_local_player(player_o_type, "O", game_engine, uis)
+    player1 = _create_local_player(player_x_type, "X", board, uis)
+    player2 = _create_local_player(player_o_type, "O", board, uis)
     return player1, player2
 
 
@@ -66,9 +62,9 @@ def create_local_players(
 
 def _create_network_player(
     player_type: Literal["local", "remote"],
-    game_engine: GameEngine,
     uis: list[Ui],
     transport: TcpTransport,
+    board: Board,
     symbol: PlayerSymbol | None = None,
 ) -> Player:
     match player_type:
@@ -78,9 +74,7 @@ def _create_network_player(
                 local_player.add_enable_input_cb(ui.enable_input)
             return local_player
         case "remote":
-            remote_player = RemoteNetworkPlayer(transport, symbol)
-            remote_player.set_apply_move_cb(game_engine.apply_move)
-            return remote_player
+            return RemoteNetworkPlayer(transport, board, symbol)
         case _:
             msg = f"Unknown network player type: {player_type}. Choose from 'local', 'remote'."
             raise ValueError(msg)
@@ -89,27 +83,27 @@ def _create_network_player(
 def create_network_host_players(
     player_x_type: Literal["local", "remote"],
     player_o_type: Literal["local", "remote"],
-    game_engine: GameEngine,
+    board: Board,
     uis: list[Ui],
     port: int,
 ) -> tuple[Player, Player]:
     if player_x_type == player_o_type:
         raise ValueError("Player types must differ in network mode.")
     transport = create_host_transport(port)
-    player1 = _create_network_player(player_x_type, game_engine, uis, transport, "X")
-    player2 = _create_network_player(player_o_type, game_engine, uis, transport, "O")
+    player1 = _create_network_player(player_x_type, uis, transport, board, "X")
+    player2 = _create_network_player(player_o_type, uis, transport, board, "O")
     return player1, player2
 
 
 def create_network_client_players(
-    game_engine: GameEngine,
+    board: Board,
     uis: list[Ui],
     host: str,
     port: int,
 ) -> tuple[Player, Player]:
     transport = create_client_transport(host, port)
-    player1 = _create_network_player("local", game_engine, uis, transport)
-    player2 = _create_network_player("remote", game_engine, uis, transport)
+    player1 = _create_network_player("local", uis, transport, board)
+    player2 = _create_network_player("remote", uis, transport, board)
     return player1, player2
 
 
