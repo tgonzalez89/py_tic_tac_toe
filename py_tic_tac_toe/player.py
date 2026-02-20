@@ -17,6 +17,5 @@ class Player(ABC):
     def start_turn(self) -> None:
         pass
 
-    @abstractmethod
-    def apply_move(self, row: int, col: int) -> bool:
+    def on_move_applied(self, row: int, col: int) -> None:  # noqa: B027
         pass

@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 from copy import deepcopy
 
-from py_tic_tac_toe.board import Board, Move, PlayerSymbol
+from py_tic_tac_toe.board import Board, PlayerSymbol
 from py_tic_tac_toe.exception import LogicError
 from py_tic_tac_toe.game import Game
 from py_tic_tac_toe.player import Player
@@ -12,9 +12,9 @@ from py_tic_tac_toe.player import Player
 class AiPlayer(Player, ABC):
     def __init__(self, symbol: PlayerSymbol, game: Game) -> None:
         super().__init__(symbol, game)
-        self._apply_move_cb: Callable[[int, int], bool]
+        self._apply_move_cb: Callable[[int, int], None]
 
-    def set_apply_move_cb(self, callback: Callable[[int, int], bool]) -> None:
+    def set_apply_move_cb(self, callback: Callable[[int, int], None]) -> None:
         self._apply_move_cb = callback
 
     def start_turn(self) -> None:
@@ -24,10 +24,6 @@ class AiPlayer(Player, ABC):
             raise LogicError(msg)
         row, col = move
         self._apply_move_cb(row, col)
-
-    def apply_move(self, row: int, col: int) -> bool:
-        self._game.apply_move(Move(self._symbol, row, col))
-        return True
 
     @abstractmethod
     def _find_move(self) -> tuple[int, int] | None:

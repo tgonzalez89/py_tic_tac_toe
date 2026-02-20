@@ -1,0 +1,43 @@
+sequenceDiagram
+    participant UI as UI
+    participant GE as GameEngine
+    participant AiP as AiPlayer
+    participant Game as Game
+    participant Board as Board
+
+    activate GE
+    GE->>AiP: start_turn()
+
+    activate AiP
+    AiP->>AiP: row, col = _find_move()
+    AiP->>AiP: Find available positions & choose one
+    AiP->>GE: apply_move(row, col) via callback
+
+    activate GE
+    GE->>Game: apply_move(Move(symbol, row, col))
+    activate Game
+    Game->>Board: apply_move(move)
+    activate Board
+    Board->>Board: Validate move & update board
+    Board-->>Game:
+    deactivate Board
+    Game->>Game: Switch current player
+    Game-->>GE:
+    deactivate Game
+
+    GE->>GE: _notify_board_updated()
+    GE->>UI: on_board_updated() via callback
+    activate UI
+    UI->>UI: _render_board()
+    UI->>UI: Check if game over (winner/draw)
+    UI-->>GE:
+    deactivate UI
+
+    GE->>GE: _start_next_turn()
+    GE->>GE: Check if game over (winner/draw)
+    note over GE: Start next player's turn<br>(human or AI)
+
+    GE-->>AiP: apply_move callback returns
+    deactivate GE
+    deactivate AiP
+    deactivate GE

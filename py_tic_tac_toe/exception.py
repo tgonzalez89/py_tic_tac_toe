@@ -1,6 +1,7 @@
 class GameError(Exception):
     pass
 
+
 class LogicError(GameError):
     pass
 

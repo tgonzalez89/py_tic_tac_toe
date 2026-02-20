@@ -38,7 +38,7 @@ class FakeUI(Ui):
         self.end_message = message
         self.game_finished = True
 
-    def on_input_error(self, exception: Exception) -> None:
+    def _on_input_error(self, exception: Exception) -> None:
         """Track input errors."""
         self.input_errors.append(exception)
 
@@ -200,7 +200,6 @@ class TestLocalHumanVsAI:
         player2 = RandomAiPlayer("O", game_engine.game)
 
         player1.add_enable_input_cb(ui.enable_input)
-        player1.add_input_error_cb(ui.on_input_error)
         player2.set_apply_move_cb(game_engine.apply_move)
 
         game_engine.set_players(player1, player2)
@@ -246,7 +245,6 @@ class TestLocalAIVsHuman:
 
         player1.set_apply_move_cb(game_engine.apply_move)
         player2.add_enable_input_cb(ui.enable_input)
-        player2.add_input_error_cb(ui.on_input_error)
 
         game_engine.set_players(player1, player2)
         game_engine.add_board_updated_cb(ui.on_board_updated)

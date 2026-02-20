@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 
+from py_tic_tac_toe.exception import InvalidMoveError
 from py_tic_tac_toe.game_engine import GameEngine
 
 
@@ -19,13 +20,17 @@ class Ui(ABC):
     def _stop(self) -> None:
         self._running = False
 
-    def _apply_move(self, row: int, col: int) -> bool:
+    def _apply_move(self, row: int, col: int) -> None:
         # Disable own input immediately.
         # Prevents sending multiple moves.
         # This might not be strictly necessary because we're using a synchronous callback system,
         # but if the architecture changes in the future, this will prevent a potential bug.
         self._disable_input()
-        return self._game_engine.apply_move(row, col)
+        try:
+            self._game_engine.apply_move(row, col)
+        except InvalidMoveError as e:
+            self.enable_input()
+            self._on_input_error(e)
 
     def enable_input(self) -> None:
         if not self._running:
@@ -63,5 +68,5 @@ class Ui(ABC):
         pass
 
     @abstractmethod
-    def on_input_error(self, exception: Exception) -> None:
+    def _on_input_error(self, exception: Exception) -> None:
         pass

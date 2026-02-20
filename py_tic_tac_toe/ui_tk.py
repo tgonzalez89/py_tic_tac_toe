@@ -72,5 +72,5 @@ class TkUi(Ui):
         messagebox.showinfo("Game Over", msg)
         self._stop()
 
-    def on_input_error(self, _exception: Exception) -> None:
+    def _on_input_error(self, _exception: Exception) -> None:
         pass

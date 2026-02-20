@@ -3,7 +3,7 @@ from abc import abstractmethod
 from collections.abc import Callable
 from typing import Any, cast
 
-from py_tic_tac_toe.board import Move, PlayerSymbol
+from py_tic_tac_toe.board import PlayerSymbol
 from py_tic_tac_toe.exception import LogicError
 from py_tic_tac_toe.game import Game
 from py_tic_tac_toe.player import Player
@@ -49,11 +49,8 @@ class LocalNetworkPlayer(NetworkPlayer, LocalPlayer):
     def _get_opposite_class_name(self) -> str:
         return RemoteNetworkPlayer.__name__
 
-    def apply_move(self, row: int, col: int) -> bool:
-        if super().apply_move(row, col):
-            self._transport.send({"type": "move", "row": row, "col": col})
-            return True
-        return False
+    def on_move_applied(self, row: int, col: int) -> None:
+        self._transport.send({"type": "move", "row": row, "col": col})
 
 
 class RemoteNetworkPlayer(NetworkPlayer):
@@ -62,10 +59,10 @@ class RemoteNetworkPlayer(NetworkPlayer):
 
     def __init__(self, game: Game, transport: TcpTransport, symbol: PlayerSymbol | None = None) -> None:
         super().__init__(game, transport, symbol)
-        self._apply_move_cb: Callable[[int, int], bool]
+        self._apply_move_cb: Callable[[int, int], None]
         self._transport.add_recv_handler("move", self._handle_move)
 
-    def set_apply_move_cb(self, callback: Callable[[int, int], bool]) -> None:
+    def set_apply_move_cb(self, callback: Callable[[int, int], None]) -> None:
         self._apply_move_cb = callback
 
     def _handle_move(self, msg: dict[str, Any]) -> None:
@@ -80,7 +77,3 @@ class RemoteNetworkPlayer(NetworkPlayer):
 
     def start_turn(self) -> None:
         pass
-
-    def apply_move(self, row: int, col: int) -> bool:
-        self._game.apply_move(Move(self._symbol, row, col))
-        return True

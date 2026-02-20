@@ -1,5 +1,6 @@
 from collections.abc import Callable
 
+from py_tic_tac_toe.board import Move
 from py_tic_tac_toe.game import Game
 from py_tic_tac_toe.player import Player
 
@@ -30,12 +31,13 @@ class GameEngine:
         self._notify_board_updated()
         self._start_next_turn()
 
-    def apply_move(self, row: int, col: int) -> bool:
-        move_applied = self.current_player.apply_move(row, col)
-        if move_applied:
-            self._notify_board_updated()
+    def apply_move(self, row: int, col: int) -> None:
+        # Cache the current player before applying the move, because game.apply_move switches players.
+        player = self.current_player
+        self._game.apply_move(Move(player.symbol, row, col))
+        player.on_move_applied(row, col)
+        self._notify_board_updated()
         self._start_next_turn()
-        return move_applied
 
     def _notify_board_updated(self) -> None:
         for callback in list(self._board_updated_cbs):

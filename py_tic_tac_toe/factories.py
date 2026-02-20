@@ -34,7 +34,6 @@ def _create_local_player(
             human_player = LocalPlayer(symbol, game_engine.game)
             for ui in uis:
                 human_player.add_enable_input_cb(ui.enable_input)
-                human_player.add_input_error_cb(ui.on_input_error)
             return human_player
         case "easy-ai":
             random_ai_player = RandomAiPlayer(symbol, game_engine.game)
@@ -77,7 +76,6 @@ def _create_network_player(
             local_player = LocalNetworkPlayer(game_engine.game, transport, symbol)
             for ui in uis:
                 local_player.add_enable_input_cb(ui.enable_input)
-                local_player.add_input_error_cb(ui.on_input_error)
             return local_player
         case "remote":
             remote_player = RemoteNetworkPlayer(game_engine.game, transport, symbol)

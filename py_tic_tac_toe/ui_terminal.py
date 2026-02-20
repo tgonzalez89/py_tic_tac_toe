@@ -45,13 +45,13 @@ class TerminalUi(Ui):
         try:
             board_position = int(input_str)
         except ValueError:
-            self.on_input_error(ValueError("Not an integer"))
+            self._on_input_error(ValueError("Not an integer"))
             self._ask_for_move()
             return
         else:
             max_move = BOARD_SIZE * BOARD_SIZE
             if not (1 <= board_position <= max_move):
-                self.on_input_error(ValueError(f"Not between 1 and {max_move}"))
+                self._on_input_error(ValueError(f"Not between 1 and {max_move}"))
                 self._ask_for_move()
                 return
 
@@ -84,7 +84,7 @@ class TerminalUi(Ui):
         print(f"{msg}", flush=True)
         self._stop()
 
-    def on_input_error(self, exception: Exception) -> None:
+    def _on_input_error(self, exception: Exception) -> None:
         if not self._running:
             return
         print(str(exception), flush=True)
