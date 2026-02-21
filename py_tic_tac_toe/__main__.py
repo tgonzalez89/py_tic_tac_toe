@@ -48,12 +48,17 @@ def main() -> None:
                     player1, player2 = create_network_host_players(
                         player_types[0],
                         player_types[1],
-                        game_engine.game.board,
                         uis,
+                        game_engine,
                         args.port,
                     )
                 case "client":
-                    player1, player2 = create_network_client_players(game_engine.game.board, uis, args.host, args.port)
+                    player1, player2 = create_network_client_players(
+                        uis,
+                        game_engine,
+                        args.host,
+                        args.port,
+                    )
                 case _:
                     parser.error("Invalid role. Choose 'host' or 'client'.")
         case _:

@@ -1,5 +1,6 @@
 import threading
 from abc import abstractmethod
+from collections.abc import Callable
 from typing import Any, cast
 
 from py_tic_tac_toe.board import Board, Move, PlayerSymbol
@@ -44,38 +45,42 @@ class NetworkPlayer(Player):
 
 
 class LocalNetworkPlayer(NetworkPlayer, LocalPlayer):
+    def __init__(self, transport: TcpTransport, symbol: PlayerSymbol | None = None) -> None:
+        super().__init__(transport, symbol)
+        self._on_error_cbs: list[Callable[[Exception], None]]
+        self._transport.add_recv_handler("move_ack", self._handle_move_ack)
+
+    def add_on_error_cb(self, callback: Callable[[Exception], None]) -> None:
+        if not hasattr(self, "_on_error_cbs"):
+            self._on_error_cbs = []
+        self._on_error_cbs.append(callback)
+
     def _get_opposite_class_name(self) -> str:
         return RemoteNetworkPlayer.__name__
 
     def queue_move(self, row: int, col: int) -> None:
-        """Queue a move and wait for remote validation before returning.
-
-        Raises NetworkError if validation fails or connection is lost.
-        """
+        """Queue a move and send to remote player without waiting for acknowledgement."""
         try:
-            # Send move to remote player
+            # Send move to remote player.
             self._transport.send({"type": "move_request", "row": row, "col": col})
         except OSError as e:
-            msg = f"Failed to send move: connection lost - {e}"
-            raise NetworkError(msg) from e
-
-        # Wait for acknowledgement from remote player (hardcoded 5 second timeout)
-        timeout = 5.0
-        ack_msg = self._transport.recv(block=True, timeout=timeout)
-
-        if ack_msg is None:
-            raise NetworkError("No acknowledgement received from remote player (timeout)")
-
-        if ack_msg.get("type") != "move_ack":
-            raise NetworkError("Received unexpected message instead of acknowledgement")
-
-        if not ack_msg.get("ok", False):
-            error_text = ack_msg.get("error", "Unknown error")
-            msg = f"Remote player rejected move: {error_text}"
-            raise NetworkError(msg)
-
-        # Move was accepted, queue it locally
+            # Fail synchronously.
+            raise NetworkError("Failed to send move to remote player") from e
+        # Queue it locally immediately.
         super().queue_move(row, col)
+
+    def _handle_move_ack(self, msg: dict[str, Any]) -> None:
+        """Handle move acknowledgement from remote player asynchronously."""
+        if msg.get("type") != "move_ack":
+            for callback in self._on_error_cbs:
+                callback(NetworkError("Invalid message type received in move acknowledgement"))
+            return
+
+        if not msg.get("ok", False):
+            error_text = msg.get("error", "Unknown error")
+            error_msg = f"Remote player rejected move: {error_text}"
+            for callback in self._on_error_cbs:
+                callback(NetworkError(error_msg))
 
 
 class RemoteNetworkPlayer(NetworkPlayer):

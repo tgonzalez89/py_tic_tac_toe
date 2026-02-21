@@ -51,4 +51,5 @@ fixable = ["ALL"]
     "PT018",   # Assertion should be broken down into multiple parts
     "PLR2004", # Magic numbers are acceptable in tests
     "INP001",  # Tests don't need to be part of a package
+    "PLR0915", # Tests don't need to be limited in complexity
 ]

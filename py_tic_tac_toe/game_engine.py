@@ -2,6 +2,7 @@ import threading
 from collections.abc import Callable
 
 from py_tic_tac_toe.board import Move
+from py_tic_tac_toe.exception import InvalidMoveError, NetworkError
 from py_tic_tac_toe.game import Game
 from py_tic_tac_toe.player import Player
 
@@ -9,7 +10,8 @@ from py_tic_tac_toe.player import Player
 class GameEngine:
     def __init__(self) -> None:
         self._game = Game()
-        self._board_updated_cbs: list[Callable[[], None]]
+        self._board_updated_cbs: list[Callable[[], None]] = []
+        self._on_error_cbs: list[Callable[[Exception], None]] = []
         self._running = False
         self._game_thread: threading.Thread | None = None
 
@@ -26,13 +28,13 @@ class GameEngine:
         self._player2 = player2
 
     def add_board_updated_cb(self, callback: Callable[[], None]) -> None:
-        if not hasattr(self, "_board_updated_cbs"):
-            self._board_updated_cbs = []
         self._board_updated_cbs.append(callback)
+
+    def add_on_error_cb(self, callback: Callable[[Exception], None]) -> None:
+        self._on_error_cbs.append(callback)
 
     def start(self) -> None:
         """Start the game in manual mode. The caller must call tick() to advance the game."""
-        self._running = True
         self._notify_board_updated()
         self.current_player.start_turn()
 
@@ -65,11 +67,14 @@ class GameEngine:
         if move is None:
             return
 
-        # Apply the pending move.
+        # Apply the pending move with error handling.
         row, col = move
-        # Cache current player before applying move, as it may change after move is applied.
-        self._game.apply_move(Move(self.current_player.symbol, row, col))
-        self._notify_board_updated()
+        try:
+            self._game.apply_move(Move(self.current_player.symbol, row, col))
+            self._notify_board_updated()
+        except (InvalidMoveError, IndexError, NetworkError) as e:
+            self._notify_on_error(e)
+            return
 
         # Start next turn if game not over
         if self._game.board.is_game_over():
@@ -81,8 +86,6 @@ class GameEngine:
 
         This queues the move for the current player to be processed by the next tick().
         """
-        move = Move(self.current_player.symbol, row, col)
-        self._game.board.validate_move(move)
         self.current_player.queue_move(row, col)
 
     def _game_loop(self, tick_timeout: float | None = None) -> None:
@@ -94,3 +97,8 @@ class GameEngine:
     def _notify_board_updated(self) -> None:
         for callback in list(self._board_updated_cbs):
             callback()
+
+    def _notify_on_error(self, exception: Exception) -> None:
+        """Notify error callbacks when any error occurs."""
+        for callback in list(self._on_error_cbs):
+            callback(exception)

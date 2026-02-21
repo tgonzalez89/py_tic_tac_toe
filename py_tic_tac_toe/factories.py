@@ -64,14 +64,16 @@ def _create_network_player(
     player_type: Literal["local", "remote"],
     uis: list[Ui],
     transport: TcpTransport,
-    board: Board,
+    game_engine: GameEngine,
     symbol: PlayerSymbol | None = None,
 ) -> Player:
+    board = game_engine.game.board
     match player_type:
         case "local":
             local_player = LocalNetworkPlayer(transport, symbol)
             for ui in uis:
                 local_player.add_enable_input_cb(ui.enable_input)
+                local_player.add_on_error_cb(ui.on_error)
             return local_player
         case "remote":
             return RemoteNetworkPlayer(transport, board, symbol)
@@ -83,27 +85,27 @@ def _create_network_player(
 def create_network_host_players(
     player_x_type: Literal["local", "remote"],
     player_o_type: Literal["local", "remote"],
-    board: Board,
     uis: list[Ui],
+    game_engine: GameEngine,
     port: int,
 ) -> tuple[Player, Player]:
     if player_x_type == player_o_type:
         raise ValueError("Player types must differ in network mode.")
     transport = create_host_transport(port)
-    player1 = _create_network_player(player_x_type, uis, transport, board, "X")
-    player2 = _create_network_player(player_o_type, uis, transport, board, "O")
+    player1 = _create_network_player(player_x_type, uis, transport, game_engine, "X")
+    player2 = _create_network_player(player_o_type, uis, transport, game_engine, "O")
     return player1, player2
 
 
 def create_network_client_players(
-    board: Board,
     uis: list[Ui],
+    game_engine: GameEngine,
     host: str,
     port: int,
 ) -> tuple[Player, Player]:
     transport = create_client_transport(host, port)
-    player1 = _create_network_player("local", uis, transport, board)
-    player2 = _create_network_player("remote", uis, transport, board)
+    player1 = _create_network_player("local", uis, transport, game_engine)
+    player2 = _create_network_player("remote", uis, transport, game_engine)
     return player1, player2
 
 
@@ -116,4 +118,6 @@ def config_game_engine(game_engine: GameEngine, players: tuple[Player, Player], 
     game_engine.set_players(*players)
     for ui in uis:
         game_engine.add_board_updated_cb(ui.on_board_updated)
+        game_engine.add_on_error_cb(ui.on_error)
+
     return game_engine

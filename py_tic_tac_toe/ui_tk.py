@@ -54,8 +54,6 @@ class TkUi(Ui):
             self._buttons.append(btn)
 
     def _on_click(self, index: int) -> None:
-        if not self._input_enabled or not self._running:
-            return
         row, col = divmod(index, BOARD_SIZE)
         self._queue_move(row, col)
 
@@ -71,9 +69,3 @@ class TkUi(Ui):
     def _show_end_message_internal(self, msg: str) -> None:
         messagebox.showinfo("Game Over", msg)
         self._stop()
-
-    def _on_input_error(self, _exception: Exception) -> None:
-        pass
-
-    def _on_other_error(self, exception: Exception) -> None:
-        pass

@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 
-from py_tic_tac_toe.exception import InvalidMoveError, NetworkError
 from py_tic_tac_toe.game_engine import GameEngine
 
 
@@ -21,19 +20,12 @@ class Ui(ABC):
         self._running = False
 
     def _queue_move(self, row: int, col: int) -> None:
+        if not self._input_enabled or not self._running:
+            return
         # Disable own input immediately.
         # Prevents sending multiple moves.
-        # This might not be strictly necessary because we're using a synchronous callback system,
-        # but for an asynchronous system, this will prevent a potential bug.
         self._disable_input()
-        try:
-            self._game_engine.queue_move(row, col)
-        except InvalidMoveError as e:
-            self.enable_input()
-            self._on_input_error(e)
-        except NetworkError as e:
-            self.enable_input()
-            self._on_other_error(e)
+        self._game_engine.queue_move(row, col)
 
     def enable_input(self) -> None:
         if not self._running:
@@ -62,18 +54,15 @@ class Ui(ABC):
         elif self._game_engine.game.board.is_full():
             self._show_end_message("It's a draw")
 
+    def on_error(self, _exception: Exception) -> None:
+        if not self._running:
+            return
+        self.enable_input()
+
     @abstractmethod
     def _render_board(self) -> None:
         pass
 
     @abstractmethod
-    def _show_end_message(self, message: str) -> None:
-        pass
-
-    @abstractmethod
-    def _on_input_error(self, exception: Exception) -> None:
-        pass
-
-    @abstractmethod
-    def _on_other_error(self, exception: Exception) -> None:
+    def _show_end_message(self, msg: str) -> None:
         pass

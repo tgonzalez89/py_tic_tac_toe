@@ -93,12 +93,6 @@ class PygameUi(Ui):
     def _show_end_message(self, msg: str) -> None:
         self._end_message = msg
 
-    def _on_input_error(self, _exception: Exception) -> None:
-        pass
-
-    def _on_other_error(self, exception: Exception) -> None:
-        pass
-
     def _draw_grid(self) -> None:
         for i in range(1, BOARD_SIZE):
             pygame.draw.line(

@@ -38,29 +38,26 @@ class TerminalUi(Ui):
 
         if input_str == "exit":
             super()._stop()
-
-        if not self._input_enabled or not self._running:
             return
 
         try:
             board_position = int(input_str)
         except ValueError:
-            self._on_input_error(ValueError("Not an integer"))
+            self.on_error(ValueError("Not an integer"))
             self._ask_for_move()
             return
-        else:
-            max_move = BOARD_SIZE * BOARD_SIZE
-            if not (1 <= board_position <= max_move):
-                self._on_input_error(ValueError(f"Not between 1 and {max_move}"))
-                self._ask_for_move()
-                return
 
-            index = board_position - 1
-            row, col = divmod(index, BOARD_SIZE)
+        max_move = BOARD_SIZE * BOARD_SIZE
+        if not (1 <= board_position <= max_move):
+            self.on_error(ValueError(f"Not between 1 and {max_move}"))
+            self._ask_for_move()
+            return
 
-            self._queue_move(row, col)
-            if not self._running:
-                input()
+        index = board_position - 1
+        row, col = divmod(index, BOARD_SIZE)
+        self._queue_move(row, col)
+        if not self._running:
+            input()
 
     def _render_board(self) -> None:
         board = self._game_engine.game.board.board
@@ -84,12 +81,6 @@ class TerminalUi(Ui):
         print(f"{msg}", flush=True)
         self._stop()
 
-    def _on_input_error(self, exception: Exception) -> None:
-        if not self._running:
-            return
+    def on_error(self, exception: Exception) -> None:
         print(str(exception), flush=True)
-
-    def _on_other_error(self, exception: Exception) -> None:
-        if not self._running:
-            return
-        print(str(exception), flush=True)
+        super().on_error(exception)
