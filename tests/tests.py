@@ -809,6 +809,56 @@ class TestNetworkHumanVsHumanErrorHandling:
         finally:
             close_transports(transport_host, transport_client)
 
+    def test_client_illegal_move_occupied_cell(self) -> None:
+        """Test that illegal move (occupied cell) by remote player keeps local player input active."""
+        ui_host, ui_client, transport_host, transport_client = create_network_human_vs_human()
+
+        try:
+            ui_host.run()
+            ui_client.run()
+            wait_for_board_updates(ui_host, ui_client, 1, 1)
+
+            # Host (X) makes a valid move at (0, 0)
+            ui_host.simulate_move(0, 0)
+            wait_for_board_updates(ui_host, ui_client, 2, 2)
+
+            assert ui_host.board[0][0] == "X"
+            assert ui_client.board[0][0] == "X"
+            assert len(ui_host.errors) == 0
+            assert len(ui_client.errors) == 0
+
+            # It's now client's (O) turn
+            assert ui_client._input_enabled
+            assert not ui_host._input_enabled
+
+            # Client (O) tries to move to the same occupied cell at (0, 0)
+            ui_client.simulate_move(0, 0)
+
+            # Wait for the error to be processed (no board update expected since move is invalid)
+            start = time.time()
+            while len(ui_client.errors) == 0 and time.time() - start < 1.0:
+                ui_host._game_engine.tick()
+                ui_client._game_engine.tick()
+                time.sleep(0.01)
+
+            # Client should have an error about occupied cell
+            assert len(ui_client.errors) == 1
+            assert isinstance(ui_client.errors[0], NetworkError)
+            assert "Remote player rejected move" in str(ui_client.errors[0])
+
+            # Board should not have changed
+            assert ui_client.board[0][0] == "X"
+            assert ui_host.board[0][0] == "X"
+
+            # CRITICAL: Client's input should remain ENABLED (to retry)
+            # This is the bug - currently remote player errors re-enable UI incorrectly
+            assert ui_client._input_enabled, "Client input should remain enabled after illegal move to retry"
+            # Host should NOT have input enabled (still not their turn)
+            assert not ui_host._input_enabled
+
+        finally:
+            close_transports(transport_host, transport_client)
+
     def test_client_move_after_host_disconnect(self) -> None:
         ui_host, ui_client, transport_host, transport_client = create_network_human_vs_human()
 
@@ -830,20 +880,14 @@ class TestNetworkHumanVsHumanErrorHandling:
             with transport_client._close_lock:
                 pass
 
-            with pytest.raises(NetworkError):
-                ui_client.simulate_move(1, 0)
+            ui_client.simulate_move(1, 0)
 
-            # With async design, move is applied locally without waiting for remote confirmation
-            # The move will succeed locally if send doesn't immediately fail
-            # This test demonstrates the new async behavior where moves can be applied
-            # locally even when remote is disconnected
+            # Assert that a network error was detected when sending the move after disconnect
+            assert len(ui_client.errors) == 1
+            assert isinstance(ui_client.errors[0], NetworkError)
+            # Host should not have any errors since the client failed to send
+            assert len(ui_host.errors) == 0
 
-            # Check if an error was detected (might not be immediate)
-            if len(ui_client.errors) > 0:
-                assert isinstance(ui_client.errors[0], NetworkError)
-
-            # Move may be applied locally on client side with async design
-            # since we don't wait for acknowledgement
         finally:
             close_transports(transport_host, transport_client)
 
@@ -865,20 +909,14 @@ class TestNetworkHumanVsHumanErrorHandling:
             with transport_host._close_lock:
                 pass
 
-            with pytest.raises(NetworkError):
-                ui_host.simulate_move(0, 0)
+            ui_host.simulate_move(0, 0)
 
-            # With async design, move is applied locality without waiting for remote confirmation
-            # The move will succeed locally if send doesn't immediately fail
-            # This test demonstrates the new async behavior where moves can be applied
-            # locally even when remote is disconnected
+            # Assert that a network error was detected when sending the move after disconnect
+            assert len(ui_host.errors) == 1
+            assert isinstance(ui_host.errors[0], NetworkError)
+            # Client should not have any errors since the host failed to send
+            assert len(ui_client.errors) == 0
 
-            # Check if an error was detected (might not be immediate)
-            if len(ui_host.errors) > 0:
-                assert isinstance(ui_host.errors[0], NetworkError)
-
-            # Move may be applied locally on host side with async design
-            # since we don't wait for acknowledgement
         finally:
             close_transports(transport_host, transport_client)
 

@@ -2,9 +2,11 @@ sequenceDiagram
     participant User as User
     participant UI as UI
     participant GE as GameEngine
-    participant LocalP as LocalPlayer
+    participant LocalP as LocalNetworkPlayer
+    participant RemoteP as RemoteNetworkPlayer
     participant Game as Game
     participant Board as Board
+    participant Transport as TcpTransport
 
     activate GE
     GE->>LocalP: start_turn()
@@ -22,7 +24,23 @@ sequenceDiagram
     UI->>UI: _queue_move(row, col)
     UI->>GE: queue_move(row, col)
     GE->>LocalP: queue_move(row, col)
+    LocalP->>Transport: send({"type": "move_request", "row": row, "col": col})
     deactivate UI
+
+    activate Transport
+    Transport->>Transport: Receive msg in _recv_loop()
+    Transport->>Transport: _dispatch(msg)
+    Transport->>RemoteP: _handle_move_request(msg)
+    activate RemoteP
+    RemoteP->>RemoteP: Validate move (Board.validate_move)
+    RemoteP->>Transport: send({"type": "move_ack", "ok": true})
+    RemoteP->>RemoteP: queue_move(row, col)
+    Transport->>Transport: Receive msg in _recv_loop()
+    Transport->>Transport: _dispatch(msg)
+    deactivate RemoteP
+    Transport-->>LocalP: _handle_move_ack(msg)
+    deactivate Transport
+    LocalP->>LocalP: queue_move(row, col) after ack
 
     GE->>GE: _game_loop() in background thread
     loop Each tick
@@ -48,5 +66,6 @@ sequenceDiagram
         deactivate UI
 
         GE->>GE: if not game over -> current_player.start_turn()
+        note over GE: Remote player's start_turn() is a noop
     end
     deactivate GE

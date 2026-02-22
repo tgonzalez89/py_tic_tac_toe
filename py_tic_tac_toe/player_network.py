@@ -45,10 +45,15 @@ class NetworkPlayer(Player):
 
 
 class LocalNetworkPlayer(NetworkPlayer, LocalPlayer):
+    # Timeout in seconds for waiting for move acknowledgement from remote player
+    ACK_TIMEOUT = 5.0
+
     def __init__(self, transport: TcpTransport, symbol: PlayerSymbol | None = None) -> None:
         super().__init__(transport, symbol)
         self._on_error_cbs: list[Callable[[Exception], None]]
         self._transport.add_recv_handler("move_ack", self._handle_move_ack)
+        self.pending_move: tuple[int, int] | None = None
+        self._timeout_timer: threading.Timer | None = None
 
     def add_on_error_cb(self, callback: Callable[[Exception], None]) -> None:
         if not hasattr(self, "_on_error_cbs"):
@@ -59,18 +64,28 @@ class LocalNetworkPlayer(NetworkPlayer, LocalPlayer):
         return RemoteNetworkPlayer.__name__
 
     def queue_move(self, row: int, col: int) -> None:
-        """Queue a move and send to remote player without waiting for acknowledgement."""
+        """Queue a move and send to remote player without waiting for acknowledgement.
+
+        Starts a timer to handle timeout if acknowledgement is not received.
+        """
         try:
             # Send move to remote player.
             self._transport.send({"type": "move_request", "row": row, "col": col})
         except OSError as e:
             # Fail synchronously.
             raise NetworkError("Failed to send move to remote player") from e
-        # Queue it locally immediately.
-        super().queue_move(row, col)
+        self.pending_move = (row, col)
+        # Start timeout timer for acknowledgement
+        self._timeout_timer = threading.Timer(self.ACK_TIMEOUT, self._handle_ack_timeout)
+        self._timeout_timer.start()
 
     def _handle_move_ack(self, msg: dict[str, Any]) -> None:
         """Handle move acknowledgement from remote player asynchronously."""
+        # Cancel timeout timer since ack was received
+        if self._timeout_timer:
+            self._timeout_timer.cancel()
+            self._timeout_timer = None
+
         if msg.get("type") != "move_ack":
             for callback in self._on_error_cbs:
                 callback(NetworkError("Invalid message type received in move acknowledgement"))
@@ -81,6 +96,22 @@ class LocalNetworkPlayer(NetworkPlayer, LocalPlayer):
             error_msg = f"Remote player rejected move: {error_text}"
             for callback in self._on_error_cbs:
                 callback(NetworkError(error_msg))
+            return
+
+        # Queue move once ack is received.
+        if self.pending_move is not None:
+            row, col = self.pending_move
+            super().queue_move(row, col)
+            self.pending_move = None
+
+    def _handle_ack_timeout(self) -> None:
+        """Handle timeout waiting for acknowledgement from remote player."""
+        if self.pending_move is not None:
+            error_msg = f"Timeout waiting for move acknowledgement (>{self.ACK_TIMEOUT}s)"
+            for callback in self._on_error_cbs:
+                callback(NetworkError(error_msg))
+            self.pending_move = None
+        self._timeout_timer = None
 
 
 class RemoteNetworkPlayer(NetworkPlayer):

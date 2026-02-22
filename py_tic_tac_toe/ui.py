@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 
+from py_tic_tac_toe.exception import NetworkError
 from py_tic_tac_toe.game_engine import GameEngine
 
 
@@ -25,7 +26,10 @@ class Ui(ABC):
         # Disable own input immediately.
         # Prevents sending multiple moves.
         self._disable_input()
-        self._game_engine.queue_move(row, col)
+        try:
+            self._game_engine.queue_move(row, col)
+        except NetworkError as e:
+            self.on_error(e)
 
     def enable_input(self) -> None:
         if not self._running:

@@ -2,7 +2,7 @@ import threading
 from collections.abc import Callable
 
 from py_tic_tac_toe.board import Move
-from py_tic_tac_toe.exception import InvalidMoveError, NetworkError
+from py_tic_tac_toe.exception import InvalidMoveError
 from py_tic_tac_toe.game import Game
 from py_tic_tac_toe.player import Player
 
@@ -72,7 +72,7 @@ class GameEngine:
         try:
             self._game.apply_move(Move(self.current_player.symbol, row, col))
             self._notify_board_updated()
-        except (InvalidMoveError, IndexError, NetworkError) as e:
+        except (InvalidMoveError, IndexError) as e:
             self._notify_on_error(e)
             return
 
