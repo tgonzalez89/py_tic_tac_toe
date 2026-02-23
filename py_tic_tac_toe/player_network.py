@@ -164,3 +164,7 @@ class RemoteNetworkPlayer(NetworkPlayer):
 
     def start_turn(self) -> None:
         pass
+
+    def apply_move(self, row: int, col: int) -> None:
+        # Apply the move directly without validation since it was already validated in the move request handler.
+        self._game.apply_move(Move(self._symbol, row, col))
