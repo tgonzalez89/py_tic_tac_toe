@@ -10,6 +10,7 @@ Provides factories for creating:
 from typing import Literal
 
 from py_tic_tac_toe.board import PlayerSymbol
+from py_tic_tac_toe.game import Game
 from py_tic_tac_toe.game_engine import GameEngine
 from py_tic_tac_toe.player import Player
 from py_tic_tac_toe.player_ai import HardAiPlayer, RandomAiPlayer
@@ -26,19 +27,19 @@ from py_tic_tac_toe.ui import Ui
 def _create_local_player(
     player_type: Literal["human", "easy-ai", "hard-ai"],
     symbol: PlayerSymbol,
-    game_engine: GameEngine,
+    game: Game,
     uis: list[Ui],
 ) -> Player:
     match player_type:
         case "human":
-            human_player = LocalPlayer(game_engine.game, symbol)
+            human_player = LocalPlayer(game, symbol)
             for ui in uis:
                 human_player.add_enable_input_cb(ui.enable_input)
             return human_player
         case "easy-ai":
-            return RandomAiPlayer(game_engine.game, symbol)
+            return RandomAiPlayer(game, symbol)
         case "hard-ai":
-            return HardAiPlayer(game_engine.game, symbol)
+            return HardAiPlayer(game, symbol)
         case _:
             msg = f"Unknown local player type: {player_type}. Choose from 'human', 'easy-ai', 'hard-ai'."
             raise ValueError(msg)
@@ -47,11 +48,11 @@ def _create_local_player(
 def create_local_players(
     player_x_type: Literal["human", "easy-ai", "hard-ai"],
     player_o_type: Literal["human", "easy-ai", "hard-ai"],
-    game_engine: GameEngine,
+    game: Game,
     uis: list[Ui],
 ) -> tuple[Player, Player]:
-    player1 = _create_local_player(player_x_type, "X", game_engine, uis)
-    player2 = _create_local_player(player_o_type, "O", game_engine, uis)
+    player1 = _create_local_player(player_x_type, "X", game, uis)
+    player2 = _create_local_player(player_o_type, "O", game, uis)
     return player1, player2
 
 
@@ -64,18 +65,18 @@ def _create_network_player(
     player_type: Literal["local", "remote"],
     uis: list[Ui],
     transport: TcpTransport,
-    game_engine: GameEngine,
+    game: Game,
     symbol: PlayerSymbol | None = None,
 ) -> Player:
     match player_type:
         case "local":
-            local_player = LocalNetworkPlayer(game_engine.game, transport, symbol)
+            local_player = LocalNetworkPlayer(game, transport, symbol)
             for ui in uis:
                 local_player.add_enable_input_cb(ui.enable_input)
                 local_player.add_on_error_cb(ui.on_error)
             return local_player
         case "remote":
-            remote_player = RemoteNetworkPlayer(game_engine.game, transport, symbol)
+            remote_player = RemoteNetworkPlayer(game, transport, symbol)
             for ui in uis:
                 remote_player.add_on_error_cb(ui.on_error)
             return remote_player
@@ -88,26 +89,26 @@ def create_network_host_players(
     player_x_type: Literal["local", "remote"],
     player_o_type: Literal["local", "remote"],
     uis: list[Ui],
-    game_engine: GameEngine,
+    game: Game,
     port: int,
 ) -> tuple[Player, Player]:
     if player_x_type == player_o_type:
         raise ValueError("Player types must differ in network mode.")
     transport = create_host_transport(port)
-    player1 = _create_network_player(player_x_type, uis, transport, game_engine, "X")
-    player2 = _create_network_player(player_o_type, uis, transport, game_engine, "O")
+    player1 = _create_network_player(player_x_type, uis, transport, game, "X")
+    player2 = _create_network_player(player_o_type, uis, transport, game, "O")
     return player1, player2
 
 
 def create_network_client_players(
     uis: list[Ui],
-    game_engine: GameEngine,
+    game: Game,
     host: str,
     port: int,
 ) -> tuple[Player, Player]:
     transport = create_client_transport(host, port)
-    player1 = _create_network_player("local", uis, transport, game_engine)
-    player2 = _create_network_player("remote", uis, transport, game_engine)
+    player1 = _create_network_player("local", uis, transport, game)
+    player2 = _create_network_player("remote", uis, transport, game)
     return player1, player2
 
 

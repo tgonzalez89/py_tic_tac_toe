@@ -53,7 +53,7 @@ class FakeUI(Ui):
 def create_local_human_vs_human() -> tuple[GameEngine, FakeUI]:
     game_engine = GameEngine()
     ui = FakeUI(game_engine)
-    player1, player2 = create_local_players("human", "human", game_engine, [ui])
+    player1, player2 = create_local_players("human", "human", game_engine.game, [ui])
     config_game_engine(game_engine, (player1, player2), [ui])
     return game_engine, ui
 
@@ -157,7 +157,7 @@ class TestLocalHumanVsAI:
         """Test human player vs random AI."""
         game_engine = GameEngine()
         ui = FakeUI(game_engine)
-        player1, player2 = create_local_players("human", "easy-ai", game_engine, [ui])
+        player1, player2 = create_local_players("human", "easy-ai", game_engine.game, [ui])
         config_game_engine(game_engine, (player1, player2), [ui])
 
         assert not ui._running
@@ -235,7 +235,7 @@ class TestLocalHumanVsAI:
         """Test random AI vs human player."""
         game_engine = GameEngine()
         ui = FakeUI(game_engine)
-        player1, player2 = create_local_players("easy-ai", "human", game_engine, [ui])
+        player1, player2 = create_local_players("easy-ai", "human", game_engine.game, [ui])
         config_game_engine(game_engine, (player1, player2), [ui])
 
         assert not ui._running
@@ -319,7 +319,7 @@ class TestLocalAIVsAI:
         """Test random AI vs random AI game."""
         game_engine = GameEngine()
         ui = FakeUI(game_engine)
-        player1, player2 = create_local_players("easy-ai", "easy-ai", game_engine, [ui])
+        player1, player2 = create_local_players("easy-ai", "easy-ai", game_engine.game, [ui])
         config_game_engine(game_engine, (player1, player2), [ui])
 
         assert not ui._running
@@ -361,7 +361,7 @@ class TestLocalAIVsAI:
         """Test hard AI vs hard AI game - should always result in a draw."""
         game_engine = GameEngine()
         ui = FakeUI(game_engine)
-        player1, player2 = create_local_players("hard-ai", "hard-ai", game_engine, [ui])
+        player1, player2 = create_local_players("hard-ai", "hard-ai", game_engine.game, [ui])
         config_game_engine(game_engine, (player1, player2), [ui])
 
         assert not ui._running
@@ -424,14 +424,14 @@ def create_network_human_vs_human() -> tuple[FakeUI, FakeUI, TcpTransport, TcpTr
         "local",
         [ui_host],
         transport_host,
-        game_engine_host,
+        game_engine_host.game,
         "X",
     )
     player2_host = _create_network_player(
         "remote",
         [ui_host],
         transport_host,
-        game_engine_host,
+        game_engine_host.game,
         "O",
     )
 
@@ -440,13 +440,13 @@ def create_network_human_vs_human() -> tuple[FakeUI, FakeUI, TcpTransport, TcpTr
         "remote",
         [ui_client],
         transport_client,
-        game_engine_client,
+        game_engine_client.game,
     )
     player2_client = _create_network_player(
         "local",
         [ui_client],
         transport_client,
-        game_engine_client,
+        game_engine_client.game,
     )
 
     # Configure game engines

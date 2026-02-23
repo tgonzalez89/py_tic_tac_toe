@@ -15,6 +15,7 @@ from py_tic_tac_toe.tcp_transport import TcpTransport
 class NetworkPlayer(Player):
     def __init__(self, game: Game, transport: TcpTransport, symbol: PlayerSymbol | None = None) -> None:
         self._transport = transport
+        self._on_error_cbs: list[Callable[[Exception], None]] = []
 
         if symbol is not None:
             super().__init__(game, symbol)
@@ -29,6 +30,9 @@ class NetworkPlayer(Player):
                 raise TimeoutError("Symbol assignment timeout")
             self._transport.remove_recv_handler(f"assign_symbol:{opposite_class_name}", self._handle_assign_symbol)
             super().__init__(game, self._symbol)
+
+    def add_on_error_cb(self, callback: Callable[[Exception], None]) -> None:
+        self._on_error_cbs.append(callback)
 
     @abstractmethod
     def _get_opposite_class_name(self) -> str:
@@ -52,13 +56,9 @@ class LocalNetworkPlayer(NetworkPlayer, LocalPlayer):
 
     def __init__(self, game: Game, transport: TcpTransport, symbol: PlayerSymbol | None = None) -> None:
         NetworkPlayer.__init__(self, game, transport, symbol)
-        self._on_error_cbs: list[Callable[[Exception], None]] = []
         self._transport.add_recv_handler("move_ack", self._handle_move_ack)
         self.pending_move: tuple[int, int] | None = None
         self._timeout_timer: threading.Timer | None = None
-
-    def add_on_error_cb(self, callback: Callable[[Exception], None]) -> None:
-        self._on_error_cbs.append(callback)
 
     def _get_opposite_class_name(self) -> str:
         return RemoteNetworkPlayer.__name__
@@ -115,11 +115,7 @@ class RemoteNetworkPlayer(NetworkPlayer):
 
     def __init__(self, game: Game, transport: TcpTransport, symbol: PlayerSymbol | None = None) -> None:
         super().__init__(game, transport, symbol)
-        self._on_error_cbs: list[Callable[[Exception], None]] = []
         self._transport.add_recv_handler("move_request", self._handle_move_request)
-
-    def add_on_error_cb(self, callback: Callable[[Exception], None]) -> None:
-        self._on_error_cbs.append(callback)
 
     def _handle_move_request(self, msg: dict[str, Any]) -> None:
         """Handle incoming move request from remote player and queue it for validation by the engine."""

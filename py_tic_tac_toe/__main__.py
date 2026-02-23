@@ -41,7 +41,7 @@ def main() -> None:
             player1, player2 = create_local_players(
                 args.player_x,
                 args.player_o,
-                game_engine,
+                game_engine.game,
                 uis,
             )
         case "network":
@@ -54,13 +54,13 @@ def main() -> None:
                         player_types[0],
                         player_types[1],
                         uis,
-                        game_engine,
+                        game_engine.game,
                         args.port,
                     )
                 case "client":
                     player1, player2 = create_network_client_players(
                         uis,
-                        game_engine,
+                        game_engine.game,
                         args.host,
                         args.port,
                     )
