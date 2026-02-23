@@ -138,11 +138,6 @@ class RemoteNetworkPlayer(NetworkPlayer):
         row: int = msg["row"]
         col: int = msg["col"]
 
-        # Queue the move for the engine to validate and apply
-        self.queue_move(row, col)
-
-    def apply_move(self, row: int, col: int) -> None:
-        """Apply move to the game and send acknowledgement after validation."""
         move = Move(self.symbol, row, col)
         try:
             # Validate the move before applying to ensure invalid moves are rejected and only valid moves are applied.
@@ -162,10 +157,10 @@ class RemoteNetworkPlayer(NetworkPlayer):
                 for callback in self._on_error_cbs:
                     callback(NetworkError(error_msg))
                 return
+
         if move_ok:
-            # Apply the move unconditionally after successful verification and
-            # only after sending acknowledgement was also successful.
-            self._game.apply_move(move)
+            # Queue the move for the engine to validate and apply
+            self.queue_move(row, col)
 
     def start_turn(self) -> None:
         pass
