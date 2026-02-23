@@ -4,6 +4,7 @@ from collections.abc import Callable
 from py_tic_tac_toe.exception import InvalidMoveError
 from py_tic_tac_toe.game import Game
 from py_tic_tac_toe.player import Player
+from py_tic_tac_toe.ui import Ui
 
 
 class GameEngine:
@@ -22,14 +23,21 @@ class GameEngine:
     def current_player(self) -> Player:
         return self._player1 if self._game.current_player_symbol == self._player1.symbol else self._player2
 
-    def set_players(self, player1: Player, player2: Player) -> None:
+    def configure(self, players: tuple[Player, Player], uis: list[Ui]) -> None:
+        """Configure the game engine with players and UI callbacks."""
+        self._set_players(*players)
+        for ui in uis:
+            self._add_board_updated_cb(ui.on_board_updated)
+            self._add_on_error_cb(ui.on_error)
+
+    def _set_players(self, player1: Player, player2: Player) -> None:
         self._player1 = player1
         self._player2 = player2
 
-    def add_board_updated_cb(self, callback: Callable[[], None]) -> None:
+    def _add_board_updated_cb(self, callback: Callable[[], None]) -> None:
         self._board_updated_cbs.append(callback)
 
-    def add_on_error_cb(self, callback: Callable[[Exception], None]) -> None:
+    def _add_on_error_cb(self, callback: Callable[[Exception], None]) -> None:
         self._on_error_cbs.append(callback)
 
     def start(self) -> None:

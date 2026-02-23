@@ -5,13 +5,12 @@ import time
 from collections.abc import Iterable
 from typing import TYPE_CHECKING, Literal
 
-from py_tic_tac_toe.factories import (
-    config_game_engine,
+from py_tic_tac_toe.game_engine import GameEngine
+from py_tic_tac_toe.player_factories import (
     create_local_players,
     create_network_client_players,
     create_network_host_players,
 )
-from py_tic_tac_toe.game_engine import GameEngine
 from py_tic_tac_toe.ui_pygame import PygameUi
 from py_tic_tac_toe.ui_terminal import TerminalUi
 from py_tic_tac_toe.ui_tk import TkUi
@@ -70,7 +69,7 @@ def main() -> None:
             parser.error("Invalid mode. Choose 'local' or 'network'.")
 
     # Set players and connect UI callbacks.
-    config_game_engine(game_engine, (player1, player2), uis)
+    game_engine.configure((player1, player2), uis)
 
     # Create and start UI threads.
     ui_threads = [threading.Thread(target=ui.run, daemon=True) for ui in uis]

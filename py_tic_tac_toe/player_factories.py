@@ -11,7 +11,6 @@ from typing import Literal
 
 from py_tic_tac_toe.board import PlayerSymbol
 from py_tic_tac_toe.game import Game
-from py_tic_tac_toe.game_engine import GameEngine
 from py_tic_tac_toe.player import Player
 from py_tic_tac_toe.player_ai import HardAiPlayer, RandomAiPlayer
 from py_tic_tac_toe.player_local import LocalPlayer
@@ -110,17 +109,3 @@ def create_network_client_players(
     player1 = _create_network_player("local", uis, transport, game)
     player2 = _create_network_player("remote", uis, transport, game)
     return player1, player2
-
-
-# ============================================================================
-# GameEngine Factories
-# ============================================================================
-
-
-def config_game_engine(game_engine: GameEngine, players: tuple[Player, Player], uis: list[Ui]) -> GameEngine:
-    game_engine.set_players(*players)
-    for ui in uis:
-        game_engine.add_board_updated_cb(ui.on_board_updated)
-        game_engine.add_on_error_cb(ui.on_error)
-
-    return game_engine

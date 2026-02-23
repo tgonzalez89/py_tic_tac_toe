@@ -6,8 +6,8 @@ import pytest
 
 from py_tic_tac_toe.board import Move, PlayerSymbol
 from py_tic_tac_toe.exception import InvalidMoveError, NetworkError
-from py_tic_tac_toe.factories import _create_network_player, config_game_engine, create_local_players
 from py_tic_tac_toe.game_engine import GameEngine
+from py_tic_tac_toe.player_factories import _create_network_player, create_local_players
 from py_tic_tac_toe.tcp_transport import TcpTransport, create_client_transport, create_host_transport
 from py_tic_tac_toe.ui import Ui
 
@@ -54,7 +54,7 @@ def create_local_human_vs_human() -> tuple[GameEngine, FakeUI]:
     game_engine = GameEngine()
     ui = FakeUI(game_engine)
     player1, player2 = create_local_players("human", "human", game_engine.game, [ui])
-    config_game_engine(game_engine, (player1, player2), [ui])
+    game_engine.configure((player1, player2), [ui])
     return game_engine, ui
 
 
@@ -158,7 +158,7 @@ class TestLocalHumanVsAI:
         game_engine = GameEngine()
         ui = FakeUI(game_engine)
         player1, player2 = create_local_players("human", "easy-ai", game_engine.game, [ui])
-        config_game_engine(game_engine, (player1, player2), [ui])
+        game_engine.configure((player1, player2), [ui])
 
         assert not ui._running
         assert ui.end_message is None
@@ -236,7 +236,7 @@ class TestLocalHumanVsAI:
         game_engine = GameEngine()
         ui = FakeUI(game_engine)
         player1, player2 = create_local_players("easy-ai", "human", game_engine.game, [ui])
-        config_game_engine(game_engine, (player1, player2), [ui])
+        game_engine.configure((player1, player2), [ui])
 
         assert not ui._running
         assert ui.end_message is None
@@ -320,7 +320,7 @@ class TestLocalAIVsAI:
         game_engine = GameEngine()
         ui = FakeUI(game_engine)
         player1, player2 = create_local_players("easy-ai", "easy-ai", game_engine.game, [ui])
-        config_game_engine(game_engine, (player1, player2), [ui])
+        game_engine.configure((player1, player2), [ui])
 
         assert not ui._running
         assert ui.end_message is None
@@ -362,7 +362,7 @@ class TestLocalAIVsAI:
         game_engine = GameEngine()
         ui = FakeUI(game_engine)
         player1, player2 = create_local_players("hard-ai", "hard-ai", game_engine.game, [ui])
-        config_game_engine(game_engine, (player1, player2), [ui])
+        game_engine.configure((player1, player2), [ui])
 
         assert not ui._running
         assert ui.end_message is None
@@ -450,8 +450,8 @@ def create_network_human_vs_human() -> tuple[FakeUI, FakeUI, TcpTransport, TcpTr
     )
 
     # Configure game engines
-    config_game_engine(game_engine_host, (player1_host, player2_host), [ui_host])
-    config_game_engine(game_engine_client, (player1_client, player2_client), [ui_client])
+    game_engine_host.configure((player1_host, player2_host), [ui_host])
+    game_engine_client.configure((player1_client, player2_client), [ui_client])
 
     return ui_host, ui_client, transport_host, transport_client
 
