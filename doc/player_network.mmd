@@ -32,7 +32,7 @@ sequenceDiagram
     Transport->>Transport: _dispatch(msg)
     Transport->>RemoteP: _handle_move_request(msg)
     activate RemoteP
-    RemoteP->>RemoteP: Validate move (Board.validate_move)
+    RemoteP->>RemoteP: Validate move (Game.validate_move)
     RemoteP->>Transport: send({"type": "move_ack", "ok": true})
     RemoteP->>RemoteP: queue_move(row, col)
     Transport->>Transport: Receive msg in _recv_loop()
@@ -46,16 +46,25 @@ sequenceDiagram
     loop Each tick
         GE->>LocalP: get_pending_move(block=True)
         LocalP-->>GE: (row, col)
-        GE->>Game: apply_move(Move(symbol, row, col))
+        GE->>LocalP: apply_move(row, col)
+        activate LocalP
+        LocalP->>Game: validate_and_apply_move(Move(symbol, row, col))
         activate Game
+        Game->>Game: validate_move(move)
+        Game->>Board: validate_move(move)
+        activate Board
+        Board-->>Game:
+        deactivate Board
+        Game->>Game: apply_move(move)
         Game->>Board: apply_move(move)
         activate Board
-        Board->>Board: validate_move()
         Board-->>Game:
         deactivate Board
         Game->>Game: Switch current player
-        Game-->>GE:
+        Game-->>LocalP:
         deactivate Game
+        LocalP-->>GE:
+        deactivate LocalP
 
         GE->>GE: _notify_board_updated()
         GE->>UI: on_board_updated()
