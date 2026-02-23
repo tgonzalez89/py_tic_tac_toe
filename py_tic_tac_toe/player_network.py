@@ -159,7 +159,7 @@ class RemoteNetworkPlayer(NetworkPlayer):
                 return
 
         if move_ok:
-            # Queue the move for the engine to validate and apply
+            # Queue the move for the engine apply.
             self.queue_move(row, col)
 
     def start_turn(self) -> None:
