@@ -53,7 +53,7 @@ class FakeUI(Ui):
 def create_local_human_vs_human() -> tuple[GameEngine, FakeUI]:
     game_engine = GameEngine()
     ui = FakeUI(game_engine)
-    player1, player2 = create_local_players("human", "human", game_engine.game.board, [ui])
+    player1, player2 = create_local_players("human", "human", game_engine, [ui])
     config_game_engine(game_engine, (player1, player2), [ui])
     return game_engine, ui
 
@@ -157,7 +157,7 @@ class TestLocalHumanVsAI:
         """Test human player vs random AI."""
         game_engine = GameEngine()
         ui = FakeUI(game_engine)
-        player1, player2 = create_local_players("human", "easy-ai", game_engine.game.board, [ui])
+        player1, player2 = create_local_players("human", "easy-ai", game_engine, [ui])
         config_game_engine(game_engine, (player1, player2), [ui])
 
         assert not ui._running
@@ -235,7 +235,7 @@ class TestLocalHumanVsAI:
         """Test random AI vs human player."""
         game_engine = GameEngine()
         ui = FakeUI(game_engine)
-        player1, player2 = create_local_players("easy-ai", "human", game_engine.game.board, [ui])
+        player1, player2 = create_local_players("easy-ai", "human", game_engine, [ui])
         config_game_engine(game_engine, (player1, player2), [ui])
 
         assert not ui._running
@@ -319,7 +319,7 @@ class TestLocalAIVsAI:
         """Test random AI vs random AI game."""
         game_engine = GameEngine()
         ui = FakeUI(game_engine)
-        player1, player2 = create_local_players("easy-ai", "easy-ai", game_engine.game.board, [ui])
+        player1, player2 = create_local_players("easy-ai", "easy-ai", game_engine, [ui])
         config_game_engine(game_engine, (player1, player2), [ui])
 
         assert not ui._running
@@ -361,7 +361,7 @@ class TestLocalAIVsAI:
         """Test hard AI vs hard AI game - should always result in a draw."""
         game_engine = GameEngine()
         ui = FakeUI(game_engine)
-        player1, player2 = create_local_players("hard-ai", "hard-ai", game_engine.game.board, [ui])
+        player1, player2 = create_local_players("hard-ai", "hard-ai", game_engine, [ui])
         config_game_engine(game_engine, (player1, player2), [ui])
 
         assert not ui._running
@@ -723,7 +723,7 @@ class TestLocalHumanVsHumanErrorHandling:
         available = game_engine.game.board.get_available_positions()
         row, col = available[0]
         with pytest.raises(InvalidMoveError, match="Not your turn"):
-            game_engine.game.apply_move(Move("O", row, col))
+            game_engine.game.validate_and_apply_move(Move("O", row, col))
 
     def test_cannot_move_after_game_ends(self) -> None:
         """Test that no moves are allowed after the game has ended."""
@@ -757,7 +757,7 @@ class TestLocalHumanVsHumanErrorHandling:
         available = game_engine.game.board.get_available_positions()
         row, col = available[0]
         with pytest.raises(InvalidMoveError, match="Game over"):
-            game_engine.game.apply_move(Move("O", row, col))
+            game_engine.game.validate_and_apply_move(Move("O", row, col))
 
 
 # ============================================================================

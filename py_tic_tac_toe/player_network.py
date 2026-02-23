@@ -1,21 +1,23 @@
+import contextlib
 import threading
 from abc import abstractmethod
 from collections.abc import Callable
 from typing import Any, cast
 
-from py_tic_tac_toe.board import Board, Move, PlayerSymbol
+from py_tic_tac_toe.board import Move, PlayerSymbol
 from py_tic_tac_toe.exception import InvalidMoveError, LogicError, NetworkError
+from py_tic_tac_toe.game import Game
 from py_tic_tac_toe.player import Player
 from py_tic_tac_toe.player_local import LocalPlayer
 from py_tic_tac_toe.tcp_transport import TcpTransport
 
 
 class NetworkPlayer(Player):
-    def __init__(self, transport: TcpTransport, symbol: PlayerSymbol | None = None) -> None:
+    def __init__(self, game: Game, transport: TcpTransport, symbol: PlayerSymbol | None = None) -> None:
         self._transport = transport
 
         if symbol is not None:
-            super().__init__(symbol)
+            super().__init__(game, symbol)
             self._transport.send({"type": f"assign_symbol:{self.__class__.__name__}", "symbol": symbol})
         else:
             # Receiving class is the opposite of the sending class.
@@ -26,7 +28,7 @@ class NetworkPlayer(Player):
             if not self._assign_symbol_event_var.wait(timeout=5.0):
                 raise TimeoutError("Symbol assignment timeout")
             self._transport.remove_recv_handler(f"assign_symbol:{opposite_class_name}", self._handle_assign_symbol)
-            super().__init__(self._symbol)
+            super().__init__(game, self._symbol)
 
     @abstractmethod
     def _get_opposite_class_name(self) -> str:
@@ -46,18 +48,16 @@ class NetworkPlayer(Player):
 
 class LocalNetworkPlayer(NetworkPlayer, LocalPlayer):
     # Timeout in seconds for waiting for move acknowledgement from remote player
-    ACK_TIMEOUT = 5.0
+    ACK_TIMEOUT = 10.0
 
-    def __init__(self, transport: TcpTransport, symbol: PlayerSymbol | None = None) -> None:
-        super().__init__(transport, symbol)
-        self._on_error_cbs: list[Callable[[Exception], None]]
+    def __init__(self, game: Game, transport: TcpTransport, symbol: PlayerSymbol | None = None) -> None:
+        NetworkPlayer.__init__(self, game, transport, symbol)
+        self._on_error_cbs: list[Callable[[Exception], None]] = []
         self._transport.add_recv_handler("move_ack", self._handle_move_ack)
         self.pending_move: tuple[int, int] | None = None
         self._timeout_timer: threading.Timer | None = None
 
     def add_on_error_cb(self, callback: Callable[[Exception], None]) -> None:
-        if not hasattr(self, "_on_error_cbs"):
-            self._on_error_cbs = []
         self._on_error_cbs.append(callback)
 
     def _get_opposite_class_name(self) -> str:
@@ -68,12 +68,7 @@ class LocalNetworkPlayer(NetworkPlayer, LocalPlayer):
 
         Starts a timer to handle timeout if acknowledgement is not received.
         """
-        try:
-            # Send move to remote player.
-            self._transport.send({"type": "move_request", "row": row, "col": col})
-        except OSError as e:
-            # Fail synchronously.
-            raise NetworkError("Failed to send move to remote player") from e
+        self._transport.send({"type": "move_request", "row": row, "col": col})
         self.pending_move = (row, col)
         # Start timeout timer for acknowledgement
         self._timeout_timer = threading.Timer(self.ACK_TIMEOUT, self._handle_ack_timeout)
@@ -118,39 +113,59 @@ class RemoteNetworkPlayer(NetworkPlayer):
     def _get_opposite_class_name(self) -> str:
         return LocalNetworkPlayer.__name__
 
-    def __init__(self, transport: TcpTransport, board: Board, symbol: PlayerSymbol | None = None) -> None:
-        self._board = board
-        super().__init__(transport, symbol)
+    def __init__(self, game: Game, transport: TcpTransport, symbol: PlayerSymbol | None = None) -> None:
+        super().__init__(game, transport, symbol)
+        self._on_error_cbs: list[Callable[[Exception], None]] = []
         self._transport.add_recv_handler("move_request", self._handle_move_request)
 
+    def add_on_error_cb(self, callback: Callable[[Exception], None]) -> None:
+        self._on_error_cbs.append(callback)
+
     def _handle_move_request(self, msg: dict[str, Any]) -> None:
-        """Handle incoming move request from remote player, validate it, and send acknowledgement."""
+        """Handle incoming move request from remote player and queue it for validation by the engine."""
         if msg.get("type") != "move_request":
-            raise LogicError("Invalid message type received")
+            error_msg = "Invalid message type received"
+            with contextlib.suppress(NetworkError):
+                self._transport.send({"type": "move_ack", "ok": False, "error": error_msg})
+            return
 
         if not isinstance(msg.get("row"), int) or not isinstance(msg.get("col"), int):
-            raise LogicError("Invalid move data received")
+            error_msg = "Invalid move data received"
+            with contextlib.suppress(NetworkError):
+                self._transport.send({"type": "move_ack", "ok": False, "error": error_msg})
+            return
 
         row: int = msg["row"]
         col: int = msg["col"]
 
-        # Validate the move
-        ok = True
-        error_msg = ""
+        # Queue the move for the engine to validate and apply
+        self.queue_move(row, col)
 
+    def apply_move(self, row: int, col: int) -> None:
+        """Apply move to the game and send acknowledgement after validation."""
+        move = Move(self.symbol, row, col)
         try:
-            move = Move(self.symbol, row, col)
-            self._board.validate_move(move)
-        except (IndexError, InvalidMoveError) as e:
-            ok = False
+            # Validate the move before applying to ensure invalid moves are rejected and only valid moves are applied.
+            self._game.validate_move(move)
+            move_ok = True
+            error_msg = ""
+        except (InvalidMoveError, IndexError) as e:
+            move_ok = False
             error_msg = str(e)
-
-        # Send acknowledgement back
-        self._transport.send({"type": "move_ack", "ok": ok, "error": error_msg})
-
-        # If move was valid, queue it
-        if ok:
-            self.queue_move(row, col)
+            # Do not re-raise the exception here since the move was rejected and the error will be communicated back
+            # to the local player via ack.
+        finally:
+            try:
+                self._transport.send({"type": "move_ack", "ok": move_ok, "error": error_msg})
+            except NetworkError as e:
+                error_msg = f"Failed to send move acknowledgement: {e!s}"
+                for callback in self._on_error_cbs:
+                    callback(NetworkError(error_msg))
+                return
+        if move_ok:
+            # Apply the move unconditionally after successful verification and
+            # only after sending acknowledgement was also successful.
+            self._game.apply_move(move)
 
     def start_turn(self) -> None:
         pass

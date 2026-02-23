@@ -1,12 +1,14 @@
 from abc import ABC, abstractmethod
 from queue import Empty, Full, Queue
 
-from py_tic_tac_toe.board import PlayerSymbol
+from py_tic_tac_toe.board import Move, PlayerSymbol
 from py_tic_tac_toe.exception import LogicError
+from py_tic_tac_toe.game import Game
 
 
 class Player(ABC):
-    def __init__(self, symbol: PlayerSymbol) -> None:
+    def __init__(self, game: Game, symbol: PlayerSymbol) -> None:
+        self._game = game
         self._symbol = symbol
         self._move_queue: Queue[tuple[int, int]] = Queue(maxsize=1)
 
@@ -31,3 +33,7 @@ class Player(ABC):
             self._move_queue.put_nowait((row, col))
         except Full as e:
             raise LogicError("Pending move queue is full.") from e
+
+    def apply_move(self, row: int, col: int) -> None:
+        """Apply a move to the game. Override in subclasses for custom behavior."""
+        self._game.validate_and_apply_move(Move(self._symbol, row, col))

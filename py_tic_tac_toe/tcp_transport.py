@@ -6,6 +6,8 @@ import threading
 from collections.abc import Callable
 from queue import Empty, Queue, ShutDown
 
+from py_tic_tac_toe.exception import NetworkError
+
 
 class TcpTransport:
     def __init__(self, sock: socket.socket) -> None:
@@ -23,10 +25,10 @@ class TcpTransport:
     def send(self, msg: dict[str, object]) -> None:
         try:
             self._send_impl(msg)
-        except (OSError, TypeError, ValueError):
+        except (OSError, TypeError, ValueError) as e:
             # Connection was closed unexpectedly.
             self._close()
-            raise
+            raise NetworkError("Failed to send message, connection may be closed") from e
 
     def _send_impl(self, msg: dict[str, object]) -> None:
         data = json.dumps(msg).encode("utf-8") + b"\n"

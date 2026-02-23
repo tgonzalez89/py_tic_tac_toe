@@ -1,7 +1,6 @@
 import threading
 from collections.abc import Callable
 
-from py_tic_tac_toe.board import Move
 from py_tic_tac_toe.exception import InvalidMoveError
 from py_tic_tac_toe.game import Game
 from py_tic_tac_toe.player import Player
@@ -56,8 +55,8 @@ class GameEngine:
     def tick(self, *, block: bool = False, timeout: float | None = None) -> None:
         """Process one iteration of the game logic.
 
-        Checks if the current player has a pending move, applies it if available,
-        and starts the next player's turn. Call this repeatedly from a UI loop
+        Checks if the current player has a pending move, and asks them to apply it.
+        Starts the next player's turn after. Call this repeatedly from a UI loop
         when using manual mode, or let start_game_loop() handle it automatically.
         """
         if self._game.board.is_game_over():
@@ -67,10 +66,10 @@ class GameEngine:
         if move is None:
             return
 
-        # Apply the pending move with error handling.
-        row, col = move
+        # Have the player apply their move
         try:
-            self._game.apply_move(Move(self.current_player.symbol, row, col))
+            row, col = move
+            self.current_player.apply_move(row, col)
             self._notify_board_updated()
         except (InvalidMoveError, IndexError) as e:
             self._notify_on_error(e)

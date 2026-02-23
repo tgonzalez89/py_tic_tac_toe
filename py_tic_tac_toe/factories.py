@@ -9,7 +9,7 @@ Provides factories for creating:
 
 from typing import Literal
 
-from py_tic_tac_toe.board import Board, PlayerSymbol
+from py_tic_tac_toe.board import PlayerSymbol
 from py_tic_tac_toe.game_engine import GameEngine
 from py_tic_tac_toe.player import Player
 from py_tic_tac_toe.player_ai import HardAiPlayer, RandomAiPlayer
@@ -26,19 +26,19 @@ from py_tic_tac_toe.ui import Ui
 def _create_local_player(
     player_type: Literal["human", "easy-ai", "hard-ai"],
     symbol: PlayerSymbol,
-    board: Board,
+    game_engine: GameEngine,
     uis: list[Ui],
 ) -> Player:
     match player_type:
         case "human":
-            human_player = LocalPlayer(symbol)
+            human_player = LocalPlayer(game_engine.game, symbol)
             for ui in uis:
                 human_player.add_enable_input_cb(ui.enable_input)
             return human_player
         case "easy-ai":
-            return RandomAiPlayer(symbol, board)
+            return RandomAiPlayer(game_engine.game, symbol)
         case "hard-ai":
-            return HardAiPlayer(symbol, board)
+            return HardAiPlayer(game_engine.game, symbol)
         case _:
             msg = f"Unknown local player type: {player_type}. Choose from 'human', 'easy-ai', 'hard-ai'."
             raise ValueError(msg)
@@ -47,11 +47,11 @@ def _create_local_player(
 def create_local_players(
     player_x_type: Literal["human", "easy-ai", "hard-ai"],
     player_o_type: Literal["human", "easy-ai", "hard-ai"],
-    board: Board,
+    game_engine: GameEngine,
     uis: list[Ui],
 ) -> tuple[Player, Player]:
-    player1 = _create_local_player(player_x_type, "X", board, uis)
-    player2 = _create_local_player(player_o_type, "O", board, uis)
+    player1 = _create_local_player(player_x_type, "X", game_engine, uis)
+    player2 = _create_local_player(player_o_type, "O", game_engine, uis)
     return player1, player2
 
 
@@ -67,16 +67,18 @@ def _create_network_player(
     game_engine: GameEngine,
     symbol: PlayerSymbol | None = None,
 ) -> Player:
-    board = game_engine.game.board
     match player_type:
         case "local":
-            local_player = LocalNetworkPlayer(transport, symbol)
+            local_player = LocalNetworkPlayer(game_engine.game, transport, symbol)
             for ui in uis:
                 local_player.add_enable_input_cb(ui.enable_input)
                 local_player.add_on_error_cb(ui.on_error)
             return local_player
         case "remote":
-            return RemoteNetworkPlayer(transport, board, symbol)
+            remote_player = RemoteNetworkPlayer(game_engine.game, transport, symbol)
+            for ui in uis:
+                remote_player.add_on_error_cb(ui.on_error)
+            return remote_player
         case _:
             msg = f"Unknown network player type: {player_type}. Choose from 'local', 'remote'."
             raise ValueError(msg)

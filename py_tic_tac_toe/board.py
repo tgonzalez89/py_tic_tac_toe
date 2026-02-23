@@ -38,8 +38,11 @@ class Board:
         if self._board[move.row][move.col] is not None:
             raise InvalidMoveError("Cell occupied.")
 
-    def apply_move(self, move: Move) -> None:
+    def validate_and_apply_move(self, move: Move) -> None:
         self.validate_move(move)
+        self.apply_move(move)
+
+    def apply_move(self, move: Move) -> None:
         self._board[move.row][move.col] = move.player
 
     def get_available_positions(self) -> list[tuple[int, int]]:
